@@ -25,25 +25,24 @@ func (c *apiConfig) middlewareMetricsReset(next http.HandlerFunc) http.HandlerFu
 	}
 }
 
+func handlerOK(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte("OK"))
+}
+
 func main() {
 	mux, config := http.NewServeMux(), apiConfig{}
-	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte("OK"))
-	})
-	mux.Handle("/app/", config.middlewareMetricsInc(
-		http.StripPrefix("/app/", http.FileServer(http.Dir("."))),
+	mux.HandleFunc("GET /api/healthz", handlerOK)
+	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix(
+		"/app/",
+		http.FileServer(http.Dir("."))),
 	))
-	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("Hits: "))
 		w.Write([]byte(strconv.Itoa((int)(config.fileserverHits.Load()))))
 	})
-	mux.HandleFunc("POST /api/reset", config.middlewareMetricsReset(
-		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Write([]byte("OK"))
-		}))
+	mux.HandleFunc("POST /api/reset", config.middlewareMetricsReset(handlerOK))
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
