@@ -27,7 +27,7 @@ func (c *apiConfig) middlewareMetricsReset(next http.Handler) http.Handler {
 
 func main() {
 	mux, config := http.NewServeMux(), apiConfig{}
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("OK"))
 	})
@@ -35,13 +35,13 @@ func main() {
 		"/app/",
 		http.FileServer(http.Dir(".")),
 	)))
-	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("Hits: "))
 		w.Write([]byte(strconv.Itoa((int)(config.fileserverHits.Load()))))
 	})
-	mux.Handle("POST /reset", config.middlewareMetricsReset(http.StripPrefix(
-		"/reset",
+	mux.Handle("POST /api/reset", config.middlewareMetricsReset(http.StripPrefix(
+		"/api/reset",
 		http.FileServer(http.Dir(".")),
 	)))
 	server := http.Server{
