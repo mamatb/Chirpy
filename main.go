@@ -26,21 +26,21 @@ func (cfg *apiConfig) middlewareMetricsReset(next http.Handler) http.Handler {
 }
 
 func main() {
-	mux, apiCfg := http.NewServeMux(), apiConfig{fileserverHits: atomic.Int32{}}
+	mux, config := http.NewServeMux(), apiConfig{}
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("OK"))
 	})
-	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix(
+	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix(
 		"/app/",
 		http.FileServer(http.Dir(".")),
 	)))
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("Hits: "))
-		w.Write([]byte(strconv.Itoa((int)(apiCfg.fileserverHits.Load()))))
+		w.Write([]byte(strconv.Itoa((int)(config.fileserverHits.Load()))))
 	})
-	mux.Handle("/reset", apiCfg.middlewareMetricsReset(http.StripPrefix(
+	mux.Handle("/reset", config.middlewareMetricsReset(http.StripPrefix(
 		"/reset",
 		http.FileServer(http.Dir(".")),
 	)))
