@@ -18,11 +18,11 @@ func (c *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (c *apiConfig) middlewareMetricsReset(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (c *apiConfig) middlewareMetricsReset(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		c.fileserverHits.Store(0)
 		next.ServeHTTP(w, r)
-	})
+	}
 }
 
 func main() {
@@ -31,19 +31,19 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("OK"))
 	})
-	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix(
-		"/app/",
-		http.FileServer(http.Dir(".")),
-	)))
+	mux.Handle("/app/", config.middlewareMetricsInc(
+		http.StripPrefix("/app/", http.FileServer(http.Dir("."))),
+	))
 	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Write([]byte("Hits: "))
 		w.Write([]byte(strconv.Itoa((int)(config.fileserverHits.Load()))))
 	})
-	mux.Handle("POST /api/reset", config.middlewareMetricsReset(http.StripPrefix(
-		"/api/reset",
-		http.FileServer(http.Dir(".")),
-	)))
+	mux.HandleFunc("POST /api/reset", config.middlewareMetricsReset(
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Write([]byte("OK"))
+		}))
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
