@@ -1,9 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"sync/atomic"
 )
 
@@ -37,12 +37,19 @@ func main() {
 		"/app/",
 		http.FileServer(http.Dir("."))),
 	))
-	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte("Hits: "))
-		w.Write([]byte(strconv.Itoa((int)(config.fileserverHits.Load()))))
+	mux.HandleFunc("GET /admin/metrics", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(fmt.Sprintf(""+
+			"<html>\n"+
+			"  <body>\n"+
+			"    <h1>Welcome, Chirpy Admin</h1>\n"+
+			"    <p>Chirpy has been visited %d times!</p>\n"+
+			"  </body>\n"+
+			"</html>\n",
+			config.fileserverHits.Load(),
+		)))
 	})
-	mux.HandleFunc("POST /api/reset", config.middlewareMetricsReset(handlerOK))
+	mux.HandleFunc("POST /admin/reset", config.middlewareMetricsReset(handlerOK))
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
