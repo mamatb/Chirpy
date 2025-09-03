@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -12,16 +13,28 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 }
 
-type validateChirpRequest struct {
-	Body string `json:"body"`
+func respondOk(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte("OK"))
 }
 
-type validateChirpResponseOk struct {
-	Valid bool `json:"valid"`
+func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string) {
+	response, _ := json.Marshal(struct {
+		CleanedBody string `json:"cleaned_body"`
+	}{
+		CleanedBody: cleanedBody,
+	})
+	w.Write(response)
 }
 
-type validateChirpResponseError struct {
-	Error string `json:"error"`
+func respondJsonError(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(400)
+	response, _ := json.Marshal(struct {
+		Error string `json:"error"`
+	}{
+		Error: message,
+	})
+	w.Write(response)
 }
 
 func (c *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -38,13 +51,23 @@ func (c *apiConfig) middlewareMetricsReset(next http.HandlerFunc) http.HandlerFu
 	}
 }
 
-func handlerOk(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte("OK"))
+func cleanProfanities(body string, profanities map[string]bool) string {
+	bodySlice := strings.Split(body, " ")
+	for wordIdx, word := range bodySlice {
+		if _, ok := profanities[strings.ToLower(word)]; ok {
+			bodySlice[wordIdx] = "****"
+		}
+	}
+	return strings.Join(bodySlice, " ")
 }
 
 func main() {
 	mux, config := http.NewServeMux(), apiConfig{}
+	profanities := map[string]bool{
+		"kerfuffle": true,
+		"sharbert":  true,
+		"fornax":    true,
+	}
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
@@ -52,7 +75,7 @@ func main() {
 
 	mux.HandleFunc(
 		"GET /api/healthz",
-		handlerOk,
+		respondOk,
 	)
 
 	mux.Handle(
@@ -81,34 +104,23 @@ func main() {
 
 	mux.HandleFunc(
 		"POST /admin/reset",
-		config.middlewareMetricsReset(handlerOk),
+		config.middlewareMetricsReset(respondOk),
 	)
 
 	mux.HandleFunc(
 		"POST /api/validate_chirp",
 		func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			chirpReq := validateChirpRequest{}
-			if json.NewDecoder(r.Body).Decode(&chirpReq) != nil {
-				w.WriteHeader(400)
-				chirpRespFail, _ := json.Marshal(validateChirpResponseError{
-					Error: "Something went wrong",
-				})
-				w.Write(chirpRespFail)
-				return
+			request := struct {
+				Body string `json:"body"`
+			}{}
+			if json.NewDecoder(r.Body).Decode(&request) != nil {
+				respondJsonError(w, r, "Something went wrong")
+			} else if len(request.Body) > 140 {
+				respondJsonError(w, r, "Chirp is too long")
+			} else {
+				respondJsonClean(w, r, cleanProfanities(request.Body, profanities))
 			}
-			if len(chirpReq.Body) > 140 {
-				w.WriteHeader(400)
-				chirpRespFail, _ := json.Marshal(validateChirpResponseError{
-					Error: "Chirp is too long",
-				})
-				w.Write(chirpRespFail)
-				return
-			}
-			chirpRespSuccess, _ := json.Marshal(validateChirpResponseOk{
-				Valid: true,
-			})
-			w.Write(chirpRespSuccess)
 		},
 	)
 
