@@ -95,20 +95,20 @@ func main() {
 					Error: "Something went wrong",
 				})
 				w.Write(chirpRespFail)
-			} else {
-				if len(chirpReq.Body) > 140 {
-					w.WriteHeader(400)
-					chirpRespFail, _ := json.Marshal(validateChirpResponseError{
-						Error: "Chirp is too long",
-					})
-					w.Write(chirpRespFail)
-				} else {
-					chirpRespSuccess, _ := json.Marshal(validateChirpResponseOk{
-						Valid: true,
-					})
-					w.Write(chirpRespSuccess)
-				}
+				return
 			}
+			if len(chirpReq.Body) > 140 {
+				w.WriteHeader(400)
+				chirpRespFail, _ := json.Marshal(validateChirpResponseError{
+					Error: "Chirp is too long",
+				})
+				w.Write(chirpRespFail)
+				return
+			}
+			chirpRespSuccess, _ := json.Marshal(validateChirpResponseOk{
+				Valid: true,
+			})
+			w.Write(chirpRespSuccess)
 		},
 	)
 
