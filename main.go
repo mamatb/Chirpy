@@ -19,6 +19,7 @@ func respondOk(w http.ResponseWriter, _ *http.Request) {
 }
 
 func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	response, _ := json.Marshal(struct {
 		CleanedBody string `json:"cleaned_body"`
 	}{
@@ -29,6 +30,7 @@ func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string
 
 func respondJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	w.WriteHeader(400)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	response, _ := json.Marshal(struct {
 		Error string `json:"error"`
 	}{
@@ -110,7 +112,6 @@ func main() {
 	mux.HandleFunc(
 		"POST /api/validate_chirp",
 		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			request := struct {
 				Body string `json:"body"`
 			}{}
