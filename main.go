@@ -56,7 +56,7 @@ func (c *apiConfig) middlewareMetricsReset(next http.HandlerFunc) http.HandlerFu
 func cleanProfanities(body string, profanities map[string]bool) string {
 	bodySlice := strings.Split(body, " ")
 	for wordIdx, word := range bodySlice {
-		if _, ok := profanities[strings.ToLower(word)]; ok {
+		if profanities[strings.ToLower(word)] {
 			bodySlice[wordIdx] = "****"
 		}
 	}
