@@ -9,15 +9,25 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"github.com/mamatb/Chirpy/internal/database"
 )
 
 type apiConfig struct {
-	fileserverHits atomic.Int32
+	platform       string
 	dbQueries      *database.Queries
+	fileserverHits atomic.Int32
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 func respondOk(w http.ResponseWriter, _ *http.Request) {
@@ -25,14 +35,10 @@ func respondOk(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(struct {
-		CleanedBody string `json:"cleaned_body"`
-	}{
-		CleanedBody: cleanedBody,
-	})
-	w.Write(response)
+func respondForbidden(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(403)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte("FORBIDDEN"))
 }
 
 func respondJsonError(w http.ResponseWriter, _ *http.Request, message string) {
@@ -46,14 +52,38 @@ func respondJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	w.Write(response)
 }
 
-func (c *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	response, _ := json.Marshal(struct {
+		CleanedBody string `json:"cleaned_body"`
+	}{
+		CleanedBody: cleanedBody,
+	})
+	w.Write(response)
+}
+
+func (c *apiConfig) respondJsonCreated(w http.ResponseWriter, r *http.Request,
+	email string) {
+	w.WriteHeader(201)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	user, _ := c.dbQueries.CreateUser(r.Context(), email)
+	response, _ := json.Marshal(User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
+	w.Write(response)
+}
+
+func (c *apiConfig) middleMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.fileserverHits.Add(1)
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (c *apiConfig) middlewareMetricsReset(next http.HandlerFunc) http.HandlerFunc {
+func (c *apiConfig) middleMetricsReset(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c.fileserverHits.Store(0)
 		next.ServeHTTP(w, r)
@@ -75,16 +105,17 @@ func main() {
 	db, _ := sql.Open("postgres", os.Getenv("DB_URL"))
 	defer db.Close()
 	mux, config := http.NewServeMux(), apiConfig{
+		platform:  os.Getenv("PLATFORM"),
 		dbQueries: database.New(db),
+	}
+	server := http.Server{
+		Addr:    ":8080",
+		Handler: mux,
 	}
 	profanities := map[string]bool{
 		"kerfuffle": true,
 		"sharbert":  true,
 		"fornax":    true,
-	}
-	server := http.Server{
-		Addr:    ":8080",
-		Handler: mux,
 	}
 
 	mux.HandleFunc(
@@ -94,7 +125,7 @@ func main() {
 
 	mux.Handle(
 		"/app/",
-		config.middlewareMetricsInc(http.StripPrefix(
+		config.middleMetricsInc(http.StripPrefix(
 			"/app/",
 			http.FileServer(http.Dir(".")),
 		)),
@@ -118,7 +149,14 @@ func main() {
 
 	mux.HandleFunc(
 		"POST /admin/reset",
-		config.middlewareMetricsReset(respondOk),
+		func(w http.ResponseWriter, r *http.Request) {
+			if config.platform != "dev" {
+				respondForbidden(w, r)
+			} else {
+				config.dbQueries.DeleteUsers(r.Context())
+				config.middleMetricsReset(respondOk)
+			}
+		},
 	)
 
 	mux.HandleFunc(
@@ -133,6 +171,20 @@ func main() {
 				respondJsonError(w, r, "Chirp is too long")
 			} else {
 				respondJsonClean(w, r, cleanProfanities(request.Body, profanities))
+			}
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/users",
+		func(w http.ResponseWriter, r *http.Request) {
+			request := struct {
+				Email string `json:"email"`
+			}{}
+			if json.NewDecoder(r.Body).Decode(&request) != nil {
+				respondJsonError(w, r, "Something went wrong")
+			} else {
+				config.respondJsonCreated(w, r, request.Email)
 			}
 		},
 	)
