@@ -72,10 +72,9 @@ func cleanProfanities(body string, profanities map[string]bool) string {
 
 func main() {
 	godotenv.Load()
-	mux := http.NewServeMux()
 	db, _ := sql.Open("postgres", os.Getenv("DB_URL"))
 	defer db.Close()
-	config := apiConfig{
+	mux, config := http.NewServeMux(), apiConfig{
 		dbQueries: database.New(db),
 	}
 	profanities := map[string]bool{
