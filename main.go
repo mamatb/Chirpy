@@ -23,13 +23,6 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 }
 
-type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
 func respondOk(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte("OK"))
@@ -62,12 +55,15 @@ func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string
 	w.Write(response)
 }
 
-func (c *apiConfig) respondJsonCreated(w http.ResponseWriter, r *http.Request,
-	email string) {
+func respondJsonCreated(w http.ResponseWriter, _ *http.Request, user database.User) {
 	w.WriteHeader(201)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	user, _ := c.dbQueries.CreateUser(r.Context(), email)
-	response, _ := json.Marshal(User{
+	response, _ := json.Marshal(struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email     string    `json:"email"`
+	}{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -184,7 +180,8 @@ func main() {
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
 				respondJsonError(w, r, "Something went wrong")
 			} else {
-				config.respondJsonCreated(w, r, request.Email)
+				user, _ := config.dbQueries.CreateUser(r.Context(), request.Email)
+				respondJsonCreated(w, r, user)
 			}
 		},
 	)
