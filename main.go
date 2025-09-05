@@ -1,16 +1,23 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/mamatb/Chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func respondOk(w http.ResponseWriter, _ *http.Request) {
@@ -64,7 +71,13 @@ func cleanProfanities(body string, profanities map[string]bool) string {
 }
 
 func main() {
-	mux, config := http.NewServeMux(), apiConfig{}
+	godotenv.Load()
+	mux := http.NewServeMux()
+	db, _ := sql.Open("postgres", os.Getenv("DB_URL"))
+	defer db.Close()
+	config := apiConfig{
+		dbQueries: database.New(db),
+	}
 	profanities := map[string]bool{
 		"kerfuffle": true,
 		"sharbert":  true,
