@@ -23,51 +23,66 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 }
 
-func respondOk(w http.ResponseWriter, _ *http.Request) {
+type errorJson struct {
+	Error string `json:"error"`
+}
+
+type userJson struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
+type chirpJson struct {
+	ID        uuid.UUID     `json:"id"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
+	Body      string        `json:"body"`
+	UserID    uuid.NullUUID `json:"user_id"`
+}
+
+func respPlainOk(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte("OK"))
 }
 
-func respondForbidden(w http.ResponseWriter, _ *http.Request) {
+func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(403)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte("FORBIDDEN"))
 }
 
-func respondJsonError(w http.ResponseWriter, _ *http.Request, message string) {
+func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	w.WriteHeader(400)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(struct {
-		Error string `json:"error"`
-	}{
+	response, _ := json.Marshal(errorJson{
 		Error: message,
 	})
 	w.Write(response)
 }
 
-func respondJsonClean(w http.ResponseWriter, _ *http.Request, cleanedBody string) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(struct {
-		CleanedBody string `json:"cleaned_body"`
-	}{
-		CleanedBody: cleanedBody,
-	})
-	w.Write(response)
-}
-
-func respondJsonCreated(w http.ResponseWriter, _ *http.Request, user database.User) {
+func respJsonCreatedUser(w http.ResponseWriter, _ *http.Request, user database.User) {
 	w.WriteHeader(201)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-	}{
+	response, _ := json.Marshal(userJson{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+	})
+	w.Write(response)
+}
+
+func respJsonCreatedChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp) {
+	w.WriteHeader(201)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	response, _ := json.Marshal(chirpJson{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
 	})
 	w.Write(response)
 }
@@ -116,7 +131,7 @@ func main() {
 
 	mux.HandleFunc(
 		"GET /api/healthz",
-		respondOk,
+		respPlainOk,
 	)
 
 	mux.Handle(
@@ -147,26 +162,10 @@ func main() {
 		"POST /admin/reset",
 		func(w http.ResponseWriter, r *http.Request) {
 			if config.platform != "dev" {
-				respondForbidden(w, r)
+				respPlainForbidden(w, r)
 			} else {
 				config.dbQueries.DeleteUsers(r.Context())
-				config.middleMetricsReset(respondOk)
-			}
-		},
-	)
-
-	mux.HandleFunc(
-		"POST /api/validate_chirp",
-		func(w http.ResponseWriter, r *http.Request) {
-			request := struct {
-				Body string `json:"body"`
-			}{}
-			if json.NewDecoder(r.Body).Decode(&request) != nil {
-				respondJsonError(w, r, "Something went wrong")
-			} else if len(request.Body) > 140 {
-				respondJsonError(w, r, "Chirp is too long")
-			} else {
-				respondJsonClean(w, r, cleanProfanities(request.Body, profanities))
+				config.middleMetricsReset(respPlainOk)
 			}
 		},
 	)
@@ -178,10 +177,31 @@ func main() {
 				Email string `json:"email"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
-				respondJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, "Something went wrong")
 			} else {
 				user, _ := config.dbQueries.CreateUser(r.Context(), request.Email)
-				respondJsonCreated(w, r, user)
+				respJsonCreatedUser(w, r, user)
+			}
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/chirps",
+		func(w http.ResponseWriter, r *http.Request) {
+			request := struct {
+				Body   string        `json:"body"`
+				UserID uuid.NullUUID `json:"user_id"`
+			}{}
+			if json.NewDecoder(r.Body).Decode(&request) != nil {
+				respJsonError(w, r, "Something went wrong")
+			} else if len(request.Body) > 140 {
+				respJsonError(w, r, "Chirp is too long")
+			} else {
+				chirp, _ := config.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
+					Body:   cleanProfanities(request.Body, profanities),
+					UserID: request.UserID,
+				})
+				respJsonCreatedChirp(w, r, chirp)
 			}
 		},
 	)
