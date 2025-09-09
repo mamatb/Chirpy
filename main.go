@@ -87,6 +87,22 @@ func respJsonCreatedChirp(w http.ResponseWriter, _ *http.Request, chirp database
 	w.Write(response)
 }
 
+func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	chirpsJson := []chirpJson{}
+	for _, chirp := range chirps {
+		chirpsJson = append(chirpsJson, chirpJson{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+	response, _ := json.Marshal(chirpsJson)
+	w.Write(response)
+}
+
 func (c *apiConfig) middleMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.fileserverHits.Add(1)
@@ -130,7 +146,7 @@ func main() {
 	}
 
 	mux.HandleFunc(
-		"GET /api/healthz",
+		"GET /api/health",
 		respPlainOk,
 	)
 
@@ -203,6 +219,14 @@ func main() {
 				})
 				respJsonCreatedChirp(w, r, chirp)
 			}
+		},
+	)
+
+	mux.HandleFunc(
+		"GET /api/chirps",
+		func(w http.ResponseWriter, r *http.Request) {
+			chirps, _ := config.dbQueries.GetChirps(r.Context())
+			respJsonChirps(w, r, chirps)
 		},
 	)
 
