@@ -181,7 +181,9 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
-	mux, config := http.NewServeMux(), apiConfig{platform: os.Getenv("PLATFORM")}
+	mux, config := http.NewServeMux(), apiConfig{
+		platform: os.Getenv("PLATFORM"),
+	}
 	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {
 		log.Fatal(err)
 	} else {
