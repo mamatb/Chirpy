@@ -17,6 +17,13 @@ import (
 	"github.com/mamatb/Chirpy/internal/database"
 )
 
+const (
+	HeaderContentType = "Content-Type"
+	ContentTypePlain  = "text/plain; charset=utf-8"
+	ContentTypeHtml   = "text/html; charset=utf-8"
+	ContentTypeJson   = "application/json; charset=utf-8"
+)
+
 type apiConfig struct {
 	platform       string
 	dbQueries      *database.Queries
@@ -43,53 +50,74 @@ type chirpJson struct {
 }
 
 func respPlainOk(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte("OK"))
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte("OK")
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(403)
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte("FORBIDDEN"))
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte("FORBIDDEN")
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func respPlainNotFound(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(404)
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte("NOT FOUND")
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	w.WriteHeader(400)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(errorJson{
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	if body, err = json.Marshal(errorJson{
 		Error: message,
-	})
-	w.Write(response)
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func respJsonCreatedUser(w http.ResponseWriter, _ *http.Request, user database.User) {
 	w.WriteHeader(201)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(userJson{
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	if body, err = json.Marshal(userJson{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
-	})
-	w.Write(response)
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func respJsonCreatedChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp) {
+func respJsonCreatedChirp(w http.ResponseWriter, r *http.Request, chirp database.Chirp) {
 	w.WriteHeader(201)
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	response, _ := json.Marshal(chirpJson{
-		ID:        chirp.ID,
-		CreatedAt: chirp.CreatedAt,
-		UpdatedAt: chirp.UpdatedAt,
-		Body:      chirp.Body,
-		UserID:    chirp.UserID,
-	})
-	w.Write(response)
+	respJsonChirp(w, r, chirp)
 }
 
 func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	chirpsJson := []chirpJson{}
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	var chirpsJson []chirpJson
 	for _, chirp := range chirps {
 		chirpsJson = append(chirpsJson, chirpJson{
 			ID:        chirp.ID,
@@ -99,8 +127,30 @@ func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Ch
 			UserID:    chirp.UserID,
 		})
 	}
-	response, _ := json.Marshal(chirpsJson)
-	w.Write(response)
+	if body, err = json.Marshal(chirpsJson); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func respJsonChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp) {
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	if body, err = json.Marshal(chirpJson{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (c *apiConfig) middleMetricsInc(next http.Handler) http.Handler {
@@ -128,13 +178,17 @@ func cleanProfanities(body string, profanities map[string]bool) string {
 }
 
 func main() {
-	godotenv.Load()
-	db, _ := sql.Open("postgres", os.Getenv("DB_URL"))
-	defer db.Close()
-	mux, config := http.NewServeMux(), apiConfig{
-		platform:  os.Getenv("PLATFORM"),
-		dbQueries: database.New(db),
+	if err := godotenv.Load(); err != nil {
+		log.Fatal(err)
 	}
+	mux, config := http.NewServeMux(), apiConfig{platform: os.Getenv("PLATFORM")}
+	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {
+		log.Fatal(err)
+	} else {
+		defer db.Close()
+		config.dbQueries = database.New(db)
+	}
+
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: mux,
@@ -161,8 +215,8 @@ func main() {
 	mux.HandleFunc(
 		"GET /admin/metrics",
 		func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write([]byte(fmt.Sprintf(""+
+			w.Header().Set(HeaderContentType, ContentTypeHtml)
+			if _, err := w.Write([]byte(fmt.Sprintf(""+
 				"<html>\n"+
 				"  <body>\n"+
 				"    <h1>Welcome, Chirpy Admin</h1>\n"+
@@ -170,7 +224,9 @@ func main() {
 				"  </body>\n"+
 				"</html>\n",
 				config.fileserverHits.Load(),
-			)))
+			))); err != nil {
+				log.Fatal(err)
+			}
 		},
 	)
 
@@ -227,6 +283,23 @@ func main() {
 		func(w http.ResponseWriter, r *http.Request) {
 			chirps, _ := config.dbQueries.GetChirps(r.Context())
 			respJsonChirps(w, r, chirps)
+		},
+	)
+
+	mux.HandleFunc(
+		"GET /api/chirps/{chirpID}",
+		func(w http.ResponseWriter, r *http.Request) {
+			var chirp database.Chirp
+			if chirpID, err := uuid.Parse(r.PathValue("chirpID")); err != nil {
+				log.Fatal(err)
+			} else {
+				chirp, _ = config.dbQueries.GetChirp(r.Context(), chirpID)
+			}
+			if chirp.ID == uuid.Nil {
+				respPlainNotFound(w, r)
+			} else {
+				respJsonChirp(w, r, chirp)
+			}
 		},
 	)
 
