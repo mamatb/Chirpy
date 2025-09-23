@@ -3,7 +3,8 @@ CREATE TABLE users (
     id uuid PRIMARY KEY,
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL,
-    email text UNIQUE NOT NULL
+    email text UNIQUE NOT NULL,
+    hashed_password text NOT NULL DEFAULT 'unset'
 );
 CREATE TABLE chirps (
     id uuid PRIMARY KEY,
@@ -14,5 +15,5 @@ CREATE TABLE chirps (
 );
 
 -- +goose Down
-DROP TABLE users;
 DROP TABLE chirps;
+DROP TABLE users;

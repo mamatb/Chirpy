@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/mamatb/Chirpy/internal/auth"
 	"github.com/mamatb/Chirpy/internal/database"
 )
 
@@ -57,6 +58,15 @@ func respPlainOk(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+func respPlainUnauthorized(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(401)
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte(message)
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(403)
 	w.Header().Set(HeaderContentType, ContentTypePlain)
@@ -90,8 +100,7 @@ func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
-func respJsonCreatedUser(w http.ResponseWriter, _ *http.Request, user database.User) {
-	w.WriteHeader(201)
+func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User) {
 	w.Header().Set(HeaderContentType, ContentTypeJson)
 	var err error
 	var body []byte
@@ -108,9 +117,9 @@ func respJsonCreatedUser(w http.ResponseWriter, _ *http.Request, user database.U
 	}
 }
 
-func respJsonCreatedChirp(w http.ResponseWriter, r *http.Request, chirp database.Chirp) {
+func respJsonUserCreated(w http.ResponseWriter, r *http.Request, user database.User) {
 	w.WriteHeader(201)
-	respJsonChirp(w, r, chirp)
+	respJsonUser(w, r, user)
 }
 
 func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
@@ -153,6 +162,11 @@ func respJsonChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp)
 	}
 }
 
+func respJsonChirpCreated(w http.ResponseWriter, r *http.Request, chirp database.Chirp) {
+	w.WriteHeader(201)
+	respJsonChirp(w, r, chirp)
+}
+
 func (c *apiConfig) middleMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.fileserverHits.Add(1)
@@ -181,7 +195,12 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
-	mux, config := http.NewServeMux(), apiConfig{
+	mux := http.NewServeMux()
+	server := http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+	config := apiConfig{
 		platform: os.Getenv("PLATFORM"),
 	}
 	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {
@@ -189,11 +208,6 @@ func main() {
 	} else {
 		defer db.Close()
 		config.dbQueries = database.New(db)
-	}
-
-	server := http.Server{
-		Addr:    ":8080",
-		Handler: mux,
 	}
 	profanities := map[string]bool{
 		"kerfuffle": true,
@@ -248,13 +262,22 @@ func main() {
 		"POST /api/users",
 		func(w http.ResponseWriter, r *http.Request) {
 			request := struct {
-				Email string `json:"email"`
+				Email    string `json:"email"`
+				Password string `json:"password"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
 				respJsonError(w, r, "Something went wrong")
+			} else if hash, err := auth.HashPassword(request.Password); err != nil {
+				respJsonError(w, r, "Something went wrong")
 			} else {
-				user, _ := config.dbQueries.CreateUser(r.Context(), request.Email)
-				respJsonCreatedUser(w, r, user)
+				user, _ := config.dbQueries.CreateUser(
+					r.Context(),
+					database.CreateUserParams{
+						Email:          request.Email,
+						HashedPassword: hash,
+					},
+				)
+				respJsonUserCreated(w, r, user)
 			}
 		},
 	)
@@ -271,11 +294,14 @@ func main() {
 			} else if len(request.Body) > 140 {
 				respJsonError(w, r, "Chirp is too long")
 			} else {
-				chirp, _ := config.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
-					Body:   cleanProfanities(request.Body, profanities),
-					UserID: request.UserID,
-				})
-				respJsonCreatedChirp(w, r, chirp)
+				chirp, _ := config.dbQueries.CreateChirp(
+					r.Context(),
+					database.CreateChirpParams{
+						Body:   cleanProfanities(request.Body, profanities),
+						UserID: request.UserID,
+					},
+				)
+				respJsonChirpCreated(w, r, chirp)
 			}
 		},
 	)
@@ -291,16 +317,35 @@ func main() {
 	mux.HandleFunc(
 		"GET /api/chirps/{chirpID}",
 		func(w http.ResponseWriter, r *http.Request) {
-			var chirp database.Chirp
 			if chirpID, err := uuid.Parse(r.PathValue("chirpID")); err != nil {
 				log.Fatal(err)
 			} else {
-				chirp, _ = config.dbQueries.GetChirp(r.Context(), chirpID)
+				chirp, _ := config.dbQueries.GetChirp(r.Context(), chirpID)
+				if chirp.ID == uuid.Nil {
+					respPlainNotFound(w, r)
+				} else {
+					respJsonChirp(w, r, chirp)
+				}
 			}
-			if chirp.ID == uuid.Nil {
-				respPlainNotFound(w, r)
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/login",
+		func(w http.ResponseWriter, r *http.Request) {
+			request := struct {
+				Email    string `json:"email"`
+				Password string `json:"password"`
+			}{}
+			if json.NewDecoder(r.Body).Decode(&request) != nil {
+				respJsonError(w, r, "Something went wrong")
 			} else {
-				respJsonChirp(w, r, chirp)
+				user, _ := config.dbQueries.GetUser(r.Context(), request.Email)
+				if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
+					respPlainUnauthorized(w, r, "Incorrect email or password")
+				} else {
+					respJsonUser(w, r, user)
+				}
 			}
 		},
 	)
