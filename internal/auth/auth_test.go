@@ -81,6 +81,7 @@ func TestValidateJWT(t *testing.T) {
 	tests, inputToken, inputSecret := map[string]error{}, "", "secret"
 	issuer, start := "chirpy", jwt.NumericDate{Time: time.Now()}
 	end := jwt.NumericDate{Time: start.Add(time.Second * time.Duration(60))}
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    issuer,
 		IssuedAt:  &start,
@@ -88,15 +89,19 @@ func TestValidateJWT(t *testing.T) {
 		Subject:   uuid.New().String(),
 	}).SignedString([]byte(inputSecret))
 	tests[inputToken] = nil
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS512,
 		jwt.RegisteredClaims{}).SignedString([]byte(inputSecret))
 	tests[inputToken] = jwt.ErrTokenSignatureInvalid
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{}).SignedString([]byte("error"))
 	tests[inputToken] = jwt.ErrTokenSignatureInvalid
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{}).SignedString([]byte(inputSecret))
 	tests[inputToken] = jwt.ErrTokenInvalidClaims
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    issuer,
 		IssuedAt:  &start,
@@ -104,6 +109,7 @@ func TestValidateJWT(t *testing.T) {
 		Subject:   uuid.New().String(),
 	}).SignedString([]byte(inputSecret))
 	tests[inputToken] = jwt.ErrTokenExpired
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    "error",
 		IssuedAt:  &start,
@@ -111,6 +117,7 @@ func TestValidateJWT(t *testing.T) {
 		Subject:   uuid.New().String(),
 	}).SignedString([]byte(inputSecret))
 	tests[inputToken] = jwt.ErrTokenInvalidIssuer
+
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    issuer,
 		IssuedAt:  &start,
@@ -118,6 +125,7 @@ func TestValidateJWT(t *testing.T) {
 		Subject:   "error",
 	}).SignedString([]byte(inputSecret))
 	tests[inputToken] = jwt.ErrTokenInvalidSubject
+
 	for inputToken, want := range tests {
 		if output, err := ValidateJWT(inputToken, inputSecret); !errors.Is(err, want) {
 			t.Errorf(
