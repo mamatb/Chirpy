@@ -13,6 +13,7 @@ import (
 
 const (
 	HeaderAuthorization = "Authorization"
+	JwtIssuer           = "chirpy"
 )
 
 func HashPassword(password string) (string, error) {
@@ -28,7 +29,7 @@ func MakeJWT(id uuid.UUID, secret string, expiry time.Duration) (string, error) 
 	start := jwt.NumericDate{Time: time.Now()}
 	end := jwt.NumericDate{Time: start.Add(expiry)}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    "chirpy",
+		Issuer:    JwtIssuer,
 		Subject:   id.String(),
 		ExpiresAt: &end,
 		IssuedAt:  &start,
@@ -45,7 +46,7 @@ func ValidateJWT(tokenString string, secret string) (uuid.UUID, error) {
 			return []byte(secret), nil
 		},
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
-		jwt.WithIssuer("chirpy"),
+		jwt.WithIssuer(JwtIssuer),
 	); err != nil {
 		return uuid.Nil, err
 	} else if id, err := uuid.Parse(claims.Subject); err != nil {

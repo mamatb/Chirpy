@@ -39,7 +39,7 @@ func TestCheckPasswordHash(t *testing.T) {
 	for _, input := range tests {
 		output, _ := bcrypt.GenerateFromPassword([]byte(input), bcrypt.DefaultCost)
 		testsOk[input] = string(output)
-		testsErr[input] = "error"
+		testsErr[input] = input
 	}
 	for input, output := range testsOk {
 		if err := CheckPasswordHash(input, output); err != nil {
@@ -146,7 +146,7 @@ func TestGetBearerToken(t *testing.T) {
 	testsErr := []http.Header{
 		{},
 		{HeaderAuthorization: []string{}},
-		{HeaderAuthorization: []string{"secret"}},
+		{HeaderAuthorization: []string{"Bearer"}},
 	}
 	for _, input := range testsOk {
 		if output, err := GetBearerToken(input); err != nil {
