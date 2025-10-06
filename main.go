@@ -27,6 +27,7 @@ const (
 
 type apiConfig struct {
 	platform       string
+	secret         string
 	dbQueries      *database.Queries
 	fileserverHits atomic.Int32
 }
@@ -40,6 +41,7 @@ type userJson struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
+	Token     string    `json:"token,omitempty"`
 }
 
 type chirpJson struct {
@@ -76,6 +78,15 @@ func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+func respPlainError(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(400)
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte(message)
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func respPlainNotFound(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(404)
 	w.Header().Set(HeaderContentType, ContentTypePlain)
@@ -100,7 +111,7 @@ func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
-func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User) {
+func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User, token string) {
 	w.Header().Set(HeaderContentType, ContentTypeJson)
 	var err error
 	var body []byte
@@ -109,6 +120,7 @@ func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User) {
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     token,
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -119,7 +131,7 @@ func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User) {
 
 func respJsonUserCreated(w http.ResponseWriter, r *http.Request, user database.User) {
 	w.WriteHeader(201)
-	respJsonUser(w, r, user)
+	respJsonUser(w, r, user, "")
 }
 
 func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
@@ -202,6 +214,7 @@ func main() {
 	}
 	config := apiConfig{
 		platform: os.Getenv("PLATFORM"),
+		secret:   os.Getenv("SECRET"),
 	}
 	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {
 		log.Fatal(err)
@@ -251,65 +264,97 @@ func main() {
 		func(w http.ResponseWriter, r *http.Request) {
 			if config.platform != "dev" {
 				respPlainForbidden(w, r)
-			} else {
-				config.dbQueries.DeleteUsers(r.Context())
-				config.middleMetricsReset(respPlainOk)
+				return
 			}
+			if config.dbQueries.DeleteUsers(r.Context()) != nil {
+				respPlainError(w, r, "Something went wrong")
+				return
+			}
+			config.middleMetricsReset(respPlainOk)
 		},
 	)
 
 	mux.HandleFunc(
 		"POST /api/users",
 		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			var hash string
+			var user database.User
 			request := struct {
 				Email    string `json:"email"`
 				Password string `json:"password"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
 				respJsonError(w, r, "Something went wrong")
-			} else if hash, err := auth.HashPassword(request.Password); err != nil {
-				respJsonError(w, r, "Something went wrong")
-			} else {
-				user, _ := config.dbQueries.CreateUser(
-					r.Context(),
-					database.CreateUserParams{
-						Email:          request.Email,
-						HashedPassword: hash,
-					},
-				)
-				respJsonUserCreated(w, r, user)
+				return
 			}
+			if hash, err = auth.HashPassword(request.Password); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			if user, err = config.dbQueries.CreateUser(
+				r.Context(),
+				database.CreateUserParams{
+					Email:          request.Email,
+					HashedPassword: hash,
+				},
+			); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			respJsonUserCreated(w, r, user)
 		},
 	)
 
 	mux.HandleFunc(
 		"POST /api/chirps",
 		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			var token string
+			var userID uuid.UUID
+			var chirp database.Chirp
+			if token, err = auth.GetBearerToken(r.Header); err != nil {
+				respPlainUnauthorized(w, r, "Missing token")
+				return
+			}
+			if userID, err = auth.ValidateJWT(token, config.secret); err != nil {
+				respPlainUnauthorized(w, r, "Invalid token")
+				return
+			}
 			request := struct {
-				Body   string        `json:"body"`
-				UserID uuid.NullUUID `json:"user_id"`
+				Body string `json:"body"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
 				respJsonError(w, r, "Something went wrong")
-			} else if len(request.Body) > 140 {
-				respJsonError(w, r, "Chirp is too long")
-			} else {
-				chirp, _ := config.dbQueries.CreateChirp(
-					r.Context(),
-					database.CreateChirpParams{
-						Body:   cleanProfanities(request.Body, profanities),
-						UserID: request.UserID,
-					},
-				)
-				respJsonChirpCreated(w, r, chirp)
+				return
 			}
+			if len(request.Body) > 140 {
+				respJsonError(w, r, "Chirp is too long")
+				return
+			}
+			if chirp, err = config.dbQueries.CreateChirp(
+				r.Context(),
+				database.CreateChirpParams{
+					Body:   cleanProfanities(request.Body, profanities),
+					UserID: uuid.NullUUID{UUID: userID, Valid: true},
+				},
+			); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			respJsonChirpCreated(w, r, chirp)
 		},
 	)
 
 	mux.HandleFunc(
 		"GET /api/chirps",
 		func(w http.ResponseWriter, r *http.Request) {
-			chirps, _ := config.dbQueries.GetChirps(r.Context())
+			var err error
+			var chirps []database.Chirp
+			if chirps, err = config.dbQueries.GetChirps(r.Context()); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
 			respJsonChirps(w, r, chirps)
 		},
 	)
@@ -317,36 +362,66 @@ func main() {
 	mux.HandleFunc(
 		"GET /api/chirps/{chirpID}",
 		func(w http.ResponseWriter, r *http.Request) {
-			if chirpID, err := uuid.Parse(r.PathValue("chirpID")); err != nil {
-				log.Fatal(err)
-			} else {
-				chirp, _ := config.dbQueries.GetChirp(r.Context(), chirpID)
-				if chirp.ID == uuid.Nil {
-					respPlainNotFound(w, r)
-				} else {
-					respJsonChirp(w, r, chirp)
-				}
+			var err error
+			var chirp database.Chirp
+			var chirpID uuid.UUID
+			if chirpID, err = uuid.Parse(r.PathValue("chirpID")); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
 			}
+			if chirp, err = config.dbQueries.GetChirp(
+				r.Context(),
+				chirpID,
+			); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			if chirp.ID == uuid.Nil {
+				respPlainNotFound(w, r)
+				return
+			}
+			respJsonChirp(w, r, chirp)
 		},
 	)
 
 	mux.HandleFunc(
 		"POST /api/login",
 		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			var token string
+			var user database.User
 			request := struct {
-				Email    string `json:"email"`
-				Password string `json:"password"`
+				Email            string `json:"email"`
+				Password         string `json:"password"`
+				ExpiresInSeconds uint   `json:"expires_in_seconds"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
 				respJsonError(w, r, "Something went wrong")
-			} else {
-				user, _ := config.dbQueries.GetUser(r.Context(), request.Email)
-				if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
-					respPlainUnauthorized(w, r, "Incorrect email or password")
-				} else {
-					respJsonUser(w, r, user)
-				}
+				return
 			}
+			if user, err = config.dbQueries.GetUser(
+				r.Context(),
+				request.Email,
+			); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
+				respPlainUnauthorized(w, r, "Incorrect email or password")
+				return
+			}
+			if request.ExpiresInSeconds == 0 || request.ExpiresInSeconds > 3600 {
+				request.ExpiresInSeconds = 3600
+			}
+			if token, err = auth.MakeJWT(
+				user.ID,
+				config.secret,
+				time.Second*time.Duration(request.ExpiresInSeconds),
+			); err != nil {
+				respJsonError(w, r, "Something went wrong")
+				return
+			}
+			respJsonUser(w, r, user, token)
 		},
 	)
 

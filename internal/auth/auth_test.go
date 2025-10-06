@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"net/http"
 	"regexp"
 	"testing"
 	"time"
@@ -131,6 +132,35 @@ func TestValidateJWT(t *testing.T) {
 			t.Errorf(
 				"ValidateJWT(\"%s\", \"%s\") = (%s, %v), want (%s, %v)",
 				inputToken, inputSecret, output, err, output, want,
+			)
+		}
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	testsOk := []http.Header{
+		{HeaderAuthorization: []string{"Bearer 123456"}},
+		{HeaderAuthorization: []string{"Bearer qwerty"}},
+		{HeaderAuthorization: []string{"Bearer secret"}},
+	}
+	testsErr := []http.Header{
+		{},
+		{HeaderAuthorization: []string{}},
+		{HeaderAuthorization: []string{"secret"}},
+	}
+	for _, input := range testsOk {
+		if output, err := GetBearerToken(input); err != nil {
+			t.Errorf(
+				"GetBearerToken(\"%s\") = (\"%s\", %v), want (token, nil)",
+				input, output, err,
+			)
+		}
+	}
+	for _, input := range testsErr {
+		if output, err := GetBearerToken(input); err == nil {
+			t.Errorf(
+				"GetBearerToken(\"%s\") = (\"%s\", %v), want (\"\", error)",
+				input, output, nil,
 			)
 		}
 	}

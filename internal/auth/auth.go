@@ -1,11 +1,18 @@
 package auth
 
 import (
+	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+)
+
+const (
+	HeaderAuthorization = "Authorization"
 )
 
 func HashPassword(password string) (string, error) {
@@ -46,4 +53,16 @@ func ValidateJWT(tokenString string, secret string) (uuid.UUID, error) {
 	} else {
 		return id, nil
 	}
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	authorization := headers.Get(HeaderAuthorization)
+	if len(authorization) == 0 {
+		return "", errors.New("empty Authorization Bearer header")
+	}
+	authorizationSplit := strings.Split(authorization, " ")
+	if len(authorizationSplit) != 2 || authorizationSplit[0] != "Bearer" {
+		return "", errors.New("invalid Authorization Bearer header")
+	}
+	return authorizationSplit[1], nil
 }
