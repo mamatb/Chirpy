@@ -10,9 +10,11 @@ import (
 )
 
 const getUserFromRefreshToken = `-- name: GetUserFromRefreshToken :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users
+SELECT id, created_at, updated_at, email, hashed_password
+FROM users
 WHERE id = (
-    SELECT user_id FROM refresh_tokens
+    SELECT user_id
+    FROM refresh_tokens
     WHERE token = $1 AND revoked_at IS NULL AND expires_at > NOW()
 )
 `

@@ -1,2 +1,3 @@
 -- name: DeleteUsers :exec
-DELETE FROM users;
+DELETE
+FROM users;
