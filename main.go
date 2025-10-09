@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	HeaderContentType = "Content-Type"
-	ContentTypePlain  = "text/plain; charset=utf-8"
-	ContentTypeHtml   = "text/html; charset=utf-8"
-	ContentTypeJson   = "application/json; charset=utf-8"
+	HeaderContentType     = "Content-Type"
+	ContentTypePlain      = "text/plain; charset=utf-8"
+	ContentTypeHtml       = "text/html; charset=utf-8"
+	ContentTypeJson       = "application/json; charset=utf-8"
+	ErrSomethingWentWrong = "Something went wrong"
 )
 
 type apiConfig struct {
@@ -37,11 +38,16 @@ type errorJson struct {
 }
 
 type userJson struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token,omitempty"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token,omitempty"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+}
+
+type tokenJson struct {
+	Token string `json:"token"`
 }
 
 type chirpJson struct {
@@ -111,16 +117,18 @@ func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
-func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User, token string) {
+func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User,
+	token string, refreshToken string) {
 	w.Header().Set(HeaderContentType, ContentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(userJson{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     token,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refreshToken,
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -131,7 +139,21 @@ func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User, to
 
 func respJsonUserCreated(w http.ResponseWriter, r *http.Request, user database.User) {
 	w.WriteHeader(201)
-	respJsonUser(w, r, user, "")
+	respJsonUser(w, r, user, "", "")
+}
+
+func respJsonToken(w http.ResponseWriter, _ *http.Request, token string) {
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	if body, err = json.Marshal(tokenJson{
+		Token: token,
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
@@ -267,7 +289,7 @@ func main() {
 				return
 			}
 			if config.dbQueries.DeleteUsers(r.Context()) != nil {
-				respPlainError(w, r, "Something went wrong")
+				respPlainError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			config.middleMetricsReset(respPlainOk)
@@ -285,11 +307,11 @@ func main() {
 				Password string `json:"password"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if hash, err = auth.HashPassword(request.Password); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if user, err = config.dbQueries.CreateUser(
@@ -299,7 +321,7 @@ func main() {
 					HashedPassword: hash,
 				},
 			); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			respJsonUserCreated(w, r, user)
@@ -325,7 +347,7 @@ func main() {
 				Body string `json:"body"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if len(request.Body) > 140 {
@@ -339,7 +361,7 @@ func main() {
 					UserID: uuid.NullUUID{UUID: userID, Valid: true},
 				},
 			); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			respJsonChirpCreated(w, r, chirp)
@@ -352,7 +374,7 @@ func main() {
 			var err error
 			var chirps []database.Chirp
 			if chirps, err = config.dbQueries.GetChirps(r.Context()); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			respJsonChirps(w, r, chirps)
@@ -366,14 +388,14 @@ func main() {
 			var chirp database.Chirp
 			var chirpID uuid.UUID
 			if chirpID, err = uuid.Parse(r.PathValue("chirpID")); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if chirp, err = config.dbQueries.GetChirp(
 				r.Context(),
 				chirpID,
 			); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if chirp.ID == uuid.Nil {
@@ -388,40 +410,100 @@ func main() {
 		"POST /api/login",
 		func(w http.ResponseWriter, r *http.Request) {
 			var err error
-			var token string
+			var token, refreshToken string
 			var user database.User
 			request := struct {
-				Email            string `json:"email"`
-				Password         string `json:"password"`
-				ExpiresInSeconds uint   `json:"expires_in_seconds"`
+				Email    string `json:"email"`
+				Password string `json:"password"`
 			}{}
 			if json.NewDecoder(r.Body).Decode(&request) != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if user, err = config.dbQueries.GetUser(
 				r.Context(),
 				request.Email,
 			); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
 			if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
 				respPlainUnauthorized(w, r, "Incorrect email or password")
 				return
 			}
-			if request.ExpiresInSeconds == 0 || request.ExpiresInSeconds > 3600 {
-				request.ExpiresInSeconds = 3600
+			if token, err = auth.MakeJWT(
+				user.ID,
+				config.secret,
+				time.Hour,
+			); err != nil {
+				respJsonError(w, r, ErrSomethingWentWrong)
+				return
+			}
+			if refreshToken, err = auth.MakeRefreshToken(); err != nil {
+				respJsonError(w, r, ErrSomethingWentWrong)
+				return
+			}
+			if _, err = config.dbQueries.CreateRefreshToken(
+				r.Context(),
+				database.CreateRefreshTokenParams{
+					Token:     refreshToken,
+					UserID:    uuid.NullUUID{UUID: user.ID, Valid: true},
+					ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+				},
+			); err != nil {
+				respJsonError(w, r, ErrSomethingWentWrong)
+				return
+			}
+			respJsonUser(w, r, user, token, refreshToken)
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/refresh",
+		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			var token, refreshToken string
+			var user database.User
+			if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
+				respPlainUnauthorized(w, r, "Missing refresh token")
+				return
+			}
+			if user, err = config.dbQueries.GetUserFromRefreshToken(
+				r.Context(),
+				refreshToken,
+			); err != nil || user.ID == uuid.Nil {
+				respPlainUnauthorized(w, r, "Invalid or expired refresh token")
+				return
 			}
 			if token, err = auth.MakeJWT(
 				user.ID,
 				config.secret,
-				time.Second*time.Duration(request.ExpiresInSeconds),
+				time.Hour,
 			); err != nil {
-				respJsonError(w, r, "Something went wrong")
+				respJsonError(w, r, ErrSomethingWentWrong)
 				return
 			}
-			respJsonUser(w, r, user, token)
+			respJsonToken(w, r, token)
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/revoke",
+		func(w http.ResponseWriter, r *http.Request) {
+			var err error
+			var refreshToken string
+			if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
+				respPlainError(w, r, "Missing refresh token")
+				return
+			}
+			if config.dbQueries.DeleteRefreshToken(
+				r.Context(),
+				refreshToken,
+			) != nil {
+				respPlainError(w, r, ErrSomethingWentWrong)
+				return
+			}
+			w.WriteHeader(204)
 		},
 	)
 
