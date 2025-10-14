@@ -58,6 +58,10 @@ func main() {
 		web.HandlerPostApiUsers(&config),
 	)
 	mux.HandleFunc(
+		"PUT /api/users",
+		web.HandlerPutApiUsers(&config),
+	)
+	mux.HandleFunc(
 		"POST /api/login",
 		web.HandlerPostApiLogin(&config),
 	)

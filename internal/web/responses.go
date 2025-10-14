@@ -25,15 +25,6 @@ func respPlainError(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
-func respPlainUnauthorized(w http.ResponseWriter, _ *http.Request, message string) {
-	w.WriteHeader(401)
-	w.Header().Set(HeaderContentType, ContentTypePlain)
-	body := []byte(message)
-	if _, err := w.Write(body); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(403)
 	w.Header().Set(HeaderContentType, ContentTypePlain)
@@ -138,6 +129,21 @@ func respJsonChirpCreated(w http.ResponseWriter, r *http.Request, chirp database
 
 func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 	w.WriteHeader(400)
+	w.Header().Set(HeaderContentType, ContentTypeJson)
+	var err error
+	var body []byte
+	if body, err = json.Marshal(jsonError{
+		Error: message,
+	}); err != nil {
+		log.Fatal(err)
+	}
+	if _, err = w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func respJsonUnauthorized(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(401)
 	w.Header().Set(HeaderContentType, ContentTypeJson)
 	var err error
 	var body []byte

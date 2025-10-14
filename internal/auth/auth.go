@@ -58,6 +58,14 @@ func ValidateJWT(tokenString string, secret string) (uuid.UUID, error) {
 	}
 }
 
+func MakeRefreshToken() (string, error) {
+	refreshToken := make([]byte, 32)
+	if _, err := rand.Read(refreshToken); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(refreshToken), nil
+}
+
 func GetBearerToken(headers http.Header) (string, error) {
 	authorization := headers.Get(HeaderAuthorization)
 	if len(authorization) == 0 {
@@ -68,12 +76,4 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", errors.New("invalid Authorization Bearer header")
 	}
 	return authorizationSplit[1], nil
-}
-
-func MakeRefreshToken() (string, error) {
-	refreshToken := make([]byte, 32)
-	if _, err := rand.Read(refreshToken); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(refreshToken), nil
 }

@@ -85,6 +85,47 @@ func HandlerPostApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 	}
 }
 
+func HandlerPutApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		var token, hash string
+		var userId uuid.UUID
+		var user database.User
+		if token, err = auth.GetBearerToken(r.Header); err != nil {
+			respJsonUnauthorized(w, r, ErrorMissingToken)
+			return
+		}
+		if userId, err = auth.ValidateJWT(token, config.Secret); err != nil {
+			respJsonUnauthorized(w, r, ErrorInvalidToken)
+			return
+		}
+		request := struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}{}
+		if json.NewDecoder(r.Body).Decode(&request) != nil {
+			respJsonError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		if hash, err = auth.HashPassword(request.Password); err != nil {
+			respJsonError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		if user, err = config.DBQueries.UpdateUser(
+			r.Context(),
+			database.UpdateUserParams{
+				ID:             userId,
+				Email:          request.Email,
+				HashedPassword: hash,
+			},
+		); err != nil {
+			respJsonError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		respJsonUser(w, r, user, "", "")
+	}
+}
+
 func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -106,7 +147,7 @@ func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 			return
 		}
 		if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
-			respPlainUnauthorized(w, r, "Incorrect email or password")
+			respJsonUnauthorized(w, r, "Incorrect email or password")
 			return
 		}
 		if token, err = auth.MakeJWT(
@@ -142,14 +183,14 @@ func HandlerPostApiRefresh(config *ApiConfig) func(http.ResponseWriter, *http.Re
 		var token, refreshToken string
 		var user database.User
 		if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
-			respPlainUnauthorized(w, r, "Missing refresh token")
+			respJsonUnauthorized(w, r, ErrorMissingRefreshToken)
 			return
 		}
 		if user, err = config.DBQueries.GetUserFromRefreshToken(
 			r.Context(),
 			refreshToken,
 		); err != nil || user.ID == uuid.Nil {
-			respPlainUnauthorized(w, r, "Invalid or expired refresh token")
+			respJsonUnauthorized(w, r, ErrorInvalidRefreshToken)
 			return
 		}
 		if token, err = auth.MakeJWT(
@@ -169,7 +210,7 @@ func HandlerPostApiRevoke(config *ApiConfig) func(http.ResponseWriter, *http.Req
 		var err error
 		var refreshToken string
 		if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
-			respPlainError(w, r, "Missing refresh token")
+			respPlainError(w, r, ErrorMissingRefreshToken)
 			return
 		}
 		if config.DBQueries.DeleteRefreshToken(
@@ -227,11 +268,11 @@ func HandlerPostApiChirps(config *ApiConfig,
 		var userId uuid.UUID
 		var chirp database.Chirp
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
-			respPlainUnauthorized(w, r, "Missing token")
+			respJsonUnauthorized(w, r, ErrorMissingToken)
 			return
 		}
 		if userId, err = auth.ValidateJWT(token, config.Secret); err != nil {
-			respPlainUnauthorized(w, r, "Invalid token")
+			respJsonUnauthorized(w, r, ErrorInvalidToken)
 			return
 		}
 		request := struct {

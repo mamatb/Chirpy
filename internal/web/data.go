@@ -9,11 +9,15 @@ import (
 )
 
 const (
-	HeaderContentType       = "Content-Type"
-	ContentTypePlain        = "text/plain; charset=utf-8"
-	ContentTypeHtml         = "text/html; charset=utf-8"
-	ContentTypeJson         = "application/json; charset=utf-8"
-	ErrorSomethingWentWrong = "Something went wrong"
+	HeaderContentType        = "Content-Type"
+	ContentTypePlain         = "text/plain; charset=utf-8"
+	ContentTypeHtml          = "text/html; charset=utf-8"
+	ContentTypeJson          = "application/json; charset=utf-8"
+	ErrorSomethingWentWrong  = "Something went wrong"
+	ErrorMissingToken        = "Missing token"
+	ErrorInvalidToken        = "Invalid token"
+	ErrorMissingRefreshToken = "Missing refresh token"
+	ErrorInvalidRefreshToken = "Invalid refresh token"
 )
 
 type ApiConfig struct {
