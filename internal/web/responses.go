@@ -25,6 +25,15 @@ func respPlainError(w http.ResponseWriter, _ *http.Request, message string) {
 	}
 }
 
+func respPlainUnauthorized(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(401)
+	w.Header().Set(HeaderContentType, ContentTypePlain)
+	body := []byte("UNAUTHORIZED")
+	if _, err := w.Write(body); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(403)
 	w.Header().Set(HeaderContentType, ContentTypePlain)

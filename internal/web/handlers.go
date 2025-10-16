@@ -142,11 +142,7 @@ func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 		if user, err = config.DBQueries.GetUser(
 			r.Context(),
 			request.Email,
-		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
-			return
-		}
-		if auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
+		); err != nil || auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
 			respJsonUnauthorized(w, r, "Incorrect email or password")
 			return
 		}
@@ -227,8 +223,8 @@ func HandlerPostApiRevoke(config *ApiConfig) func(http.ResponseWriter, *http.Req
 func HandlerGetApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
-		var chirp database.Chirp
 		var chirpId uuid.UUID
+		var chirp database.Chirp
 		if chirpId, err = uuid.Parse(r.PathValue("id")); err != nil {
 			respJsonError(w, r, ErrorSomethingWentWrong)
 			return
@@ -236,11 +232,7 @@ func HandlerGetApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Re
 		if chirp, err = config.DBQueries.GetChirp(
 			r.Context(),
 			chirpId,
-		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
-			return
-		}
-		if chirp.ID == uuid.Nil {
+		); err != nil || chirp.ID == uuid.Nil {
 			respPlainNotFound(w, r)
 			return
 		}
@@ -297,5 +289,45 @@ func HandlerPostApiChirps(config *ApiConfig,
 			return
 		}
 		respJsonChirpCreated(w, r, chirp)
+	}
+}
+
+func HandlerDeleteApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		var token string
+		var userId, chirpId uuid.UUID
+		var chirp database.Chirp
+		if token, err = auth.GetBearerToken(r.Header); err != nil {
+			respPlainUnauthorized(w, r)
+			return
+		}
+		if userId, err = auth.ValidateJWT(token, config.Secret); err != nil {
+			respPlainUnauthorized(w, r)
+			return
+		}
+		if chirpId, err = uuid.Parse(r.PathValue("id")); err != nil {
+			respPlainError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		if chirp, err = config.DBQueries.GetChirp(
+			r.Context(),
+			chirpId,
+		); err != nil || chirp.ID == uuid.Nil {
+			respPlainNotFound(w, r)
+			return
+		}
+		if chirp.UserID.UUID != userId {
+			respPlainForbidden(w, r)
+			return
+		}
+		if config.DBQueries.DeleteChirp(
+			r.Context(),
+			chirp.ID,
+		) != nil {
+			respPlainError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		w.WriteHeader(204)
 	}
 }

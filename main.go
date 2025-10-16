@@ -85,6 +85,10 @@ func main() {
 		"POST /api/chirps",
 		web.HandlerPostApiChirps(&config, profanities),
 	)
+	mux.HandleFunc(
+		"DELETE /api/chirps/{id}",
+		web.HandlerDeleteApiChirpsId(&config),
+	)
 
 	log.Fatal(server.ListenAndServe())
 }
