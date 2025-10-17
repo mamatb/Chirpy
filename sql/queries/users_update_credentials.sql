@@ -1,4 +1,4 @@
--- name: UpdateUser :one
+-- name: UpdateUserCredentials :one
 UPDATE users
 SET
     updated_at = NOW(),

@@ -62,6 +62,7 @@ func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User,
 		CreatedAt:    user.CreatedAt,
 		UpdatedAt:    user.UpdatedAt,
 		Email:        user.Email,
+		IsChirpyRed:  user.IsChirpyRed,
 		Token:        token,
 		RefreshToken: refreshToken,
 	}); err != nil {

@@ -89,6 +89,10 @@ func main() {
 		"DELETE /api/chirps/{id}",
 		web.HandlerDeleteApiChirpsId(&config),
 	)
+	mux.HandleFunc(
+		"POST /api/polka/webhooks",
+		web.HandlerPostApiPolkaWebhooks(&config),
+	)
 
 	log.Fatal(server.ListenAndServe())
 }

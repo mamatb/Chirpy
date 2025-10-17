@@ -111,9 +111,9 @@ func HandlerPutApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Reque
 			respJsonError(w, r, ErrorSomethingWentWrong)
 			return
 		}
-		if user, err = config.DBQueries.UpdateUser(
+		if user, err = config.DBQueries.UpdateUserCredentials(
 			r.Context(),
-			database.UpdateUserParams{
+			database.UpdateUserCredentialsParams{
 				ID:             userId,
 				Email:          request.Email,
 				HashedPassword: hash,
@@ -326,6 +326,35 @@ func HandlerDeleteApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http
 			chirp.ID,
 		) != nil {
 			respPlainError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		w.WriteHeader(204)
+	}
+}
+
+func HandlerPostApiPolkaWebhooks(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		var user database.User
+		request := struct {
+			Event string `json:"event"`
+			Data  struct {
+				UserId uuid.UUID `json:"user_id"`
+			} `json:"data"`
+		}{}
+		if json.NewDecoder(r.Body).Decode(&request) != nil {
+			respPlainError(w, r, ErrorSomethingWentWrong)
+			return
+		}
+		if request.Event != "user.upgraded" {
+			w.WriteHeader(204)
+			return
+		}
+		if user, err = config.DBQueries.UpdateUserRed(
+			r.Context(),
+			request.Data.UserId,
+		); err != nil || user.ID == uuid.Nil {
+			respPlainNotFound(w, r)
 			return
 		}
 		w.WriteHeader(204)

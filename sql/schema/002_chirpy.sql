@@ -4,7 +4,8 @@ CREATE TABLE users (
     created_at timestamp NOT NULL,
     updated_at timestamp NOT NULL,
     email text UNIQUE NOT NULL,
-    hashed_password text NOT NULL DEFAULT 'unset'
+    hashed_password text NOT NULL DEFAULT 'unset',
+    is_chirpy_red boolean NOT NULL DEFAULT FALSE
 );
 CREATE TABLE refresh_tokens (
     token text PRIMARY KEY,
