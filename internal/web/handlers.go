@@ -243,10 +243,26 @@ func HandlerGetApiChirpsId(config *ApiConfig) http.HandlerFunc {
 func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
+		var userId uuid.UUID
 		var chirps []database.Chirp
-		if chirps, err = config.DBQueries.GetChirps(r.Context()); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
-			return
+		userIdString := r.URL.Query().Get("author_id")
+		if len(userIdString) == 0 {
+			if chirps, err = config.DBQueries.GetChirps(r.Context()); err != nil {
+				respJsonError(w, r, ErrorSomethingWentWrong)
+				return
+			}
+		} else {
+			if userId, err = uuid.Parse(userIdString); err != nil {
+				respJsonError(w, r, ErrorSomethingWentWrong)
+				return
+			}
+			if chirps, err = config.DBQueries.GetChirpsFromUser(
+				r.Context(),
+				uuid.NullUUID{UUID: userId, Valid: true},
+			); err != nil {
+				respJsonError(w, r, ErrorSomethingWentWrong)
+				return
+			}
 		}
 		respJsonChirps(w, r, chirps)
 	}
