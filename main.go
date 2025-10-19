@@ -23,6 +23,7 @@ func main() {
 	}
 	config := web.ApiConfig{
 		Platform: os.Getenv("PLATFORM"),
+		PolkaKey: os.Getenv("POLKA_KEY"),
 		Secret:   os.Getenv("SECRET"),
 	}
 	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {

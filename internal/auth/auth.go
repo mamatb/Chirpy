@@ -23,7 +23,7 @@ func HashPassword(password string) (string, error) {
 	return string(hash), err
 }
 
-func CheckPasswordHash(password string, hash string) error {
+func ValidateHash(password string, hash string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
 
@@ -74,6 +74,18 @@ func GetBearerToken(headers http.Header) (string, error) {
 	authorizationSplit := strings.Split(authorization, " ")
 	if len(authorizationSplit) != 2 || authorizationSplit[0] != "Bearer" {
 		return "", errors.New("invalid Authorization Bearer header")
+	}
+	return authorizationSplit[1], nil
+}
+
+func GetApiKey(headers http.Header) (string, error) {
+	authorization := headers.Get(HeaderAuthorization)
+	if len(authorization) == 0 {
+		return "", errors.New("empty Authorization ApiKey header")
+	}
+	authorizationSplit := strings.Split(authorization, " ")
+	if len(authorizationSplit) != 2 || authorizationSplit[0] != "ApiKey" {
+		return "", errors.New("invalid Authorization ApiKey header")
 	}
 	return authorizationSplit[1], nil
 }

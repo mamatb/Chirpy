@@ -29,7 +29,7 @@ func TestHashPassword(t *testing.T) {
 	}
 }
 
-func TestCheckPasswordHash(t *testing.T) {
+func TestValidateHash(t *testing.T) {
 	testsOk, testsErr := map[string]string{}, map[string]string{}
 	tests := []string{
 		"123456",
@@ -42,18 +42,18 @@ func TestCheckPasswordHash(t *testing.T) {
 		testsErr[input] = input
 	}
 	for input, output := range testsOk {
-		if err := CheckPasswordHash(input, output); err != nil {
+		if err := ValidateHash(input, output); err != nil {
 			t.Errorf(
-				"CheckPassword(\"%s\", \"%s\") = (%v), want (nil)",
+				"ValidateHash(\"%s\", \"%s\") = (%v), want (nil)",
 				input, output, err,
 			)
 		}
 	}
 	for input, output := range testsErr {
-		if err := CheckPasswordHash(input, output); err == nil {
+		if err := ValidateHash(input, output); err == nil {
 			t.Errorf(
-				"CheckPassword(\"%s\", \"%s\") = (%v), want (error)",
-				input, output, nil,
+				"ValidateHash(\"%s\", \"%s\") = (nil), want (error)",
+				input, output,
 			)
 		}
 	}
@@ -159,8 +159,37 @@ func TestGetBearerToken(t *testing.T) {
 	for _, input := range testsErr {
 		if output, err := GetBearerToken(input); err == nil {
 			t.Errorf(
-				"GetBearerToken(\"%s\") = (\"%s\", %v), want (\"\", error)",
-				input, output, nil,
+				"GetBearerToken(\"%s\") = (\"%s\", nil), want (\"\", error)",
+				input, output,
+			)
+		}
+	}
+}
+
+func TestGetApiKey(t *testing.T) {
+	testsOk := []http.Header{
+		{HeaderAuthorization: []string{"ApiKey 123456"}},
+		{HeaderAuthorization: []string{"ApiKey qwerty"}},
+		{HeaderAuthorization: []string{"ApiKey secret"}},
+	}
+	testsErr := []http.Header{
+		{},
+		{HeaderAuthorization: []string{}},
+		{HeaderAuthorization: []string{"ApiKey"}},
+	}
+	for _, input := range testsOk {
+		if output, err := GetApiKey(input); err != nil {
+			t.Errorf(
+				"GetApiKey(\"%s\") = (\"%s\", %v), want (key, nil)",
+				input, output, err,
+			)
+		}
+	}
+	for _, input := range testsErr {
+		if output, err := GetApiKey(input); err == nil {
+			t.Errorf(
+				"GetApiKey(\"%s\") = (\"%s\", nil), want (\"\", error)",
+				input, output,
 			)
 		}
 	}

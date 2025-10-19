@@ -12,7 +12,7 @@ import (
 	"github.com/mamatb/Chirpy/internal/database"
 )
 
-func HandlerGetApiHealth() func(http.ResponseWriter, *http.Request) {
+func HandlerGetApiHealth() http.HandlerFunc {
 	return respPlainOk
 }
 
@@ -23,7 +23,7 @@ func HandlerApp(config *ApiConfig) http.Handler {
 	))
 }
 
-func HandlerGetAdminMetrics(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerGetAdminMetrics(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set(HeaderContentType, ContentTypeHtml)
 		if _, err := w.Write([]byte(fmt.Sprintf(""+
@@ -40,7 +40,7 @@ func HandlerGetAdminMetrics(config *ApiConfig) func(http.ResponseWriter, *http.R
 	}
 }
 
-func HandlerPostAdminReset(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostAdminReset(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if config.Platform != "dev" {
 			respPlainForbidden(w, r)
@@ -54,7 +54,7 @@ func HandlerPostAdminReset(config *ApiConfig) func(http.ResponseWriter, *http.Re
 	}
 }
 
-func HandlerPostApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiUsers(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var hash string
@@ -85,7 +85,7 @@ func HandlerPostApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 	}
 }
 
-func HandlerPutApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token, hash string
@@ -126,7 +126,7 @@ func HandlerPutApiUsers(config *ApiConfig) func(http.ResponseWriter, *http.Reque
 	}
 }
 
-func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token, refreshToken string
@@ -142,7 +142,7 @@ func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 		if user, err = config.DBQueries.GetUser(
 			r.Context(),
 			request.Email,
-		); err != nil || auth.CheckPasswordHash(request.Password, user.HashedPassword) != nil {
+		); err != nil || auth.ValidateHash(request.Password, user.HashedPassword) != nil {
 			respJsonUnauthorized(w, r, "Incorrect email or password")
 			return
 		}
@@ -173,7 +173,7 @@ func HandlerPostApiLogin(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 	}
 }
 
-func HandlerPostApiRefresh(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiRefresh(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token, refreshToken string
@@ -201,7 +201,7 @@ func HandlerPostApiRefresh(config *ApiConfig) func(http.ResponseWriter, *http.Re
 	}
 }
 
-func HandlerPostApiRevoke(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiRevoke(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var refreshToken string
@@ -220,7 +220,7 @@ func HandlerPostApiRevoke(config *ApiConfig) func(http.ResponseWriter, *http.Req
 	}
 }
 
-func HandlerGetApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerGetApiChirpsId(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var chirpId uuid.UUID
@@ -240,7 +240,7 @@ func HandlerGetApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Re
 	}
 }
 
-func HandlerGetApiChirps(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var chirps []database.Chirp
@@ -252,8 +252,7 @@ func HandlerGetApiChirps(config *ApiConfig) func(http.ResponseWriter, *http.Requ
 	}
 }
 
-func HandlerPostApiChirps(config *ApiConfig,
-	profanities map[string]bool) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token string
@@ -292,7 +291,7 @@ func HandlerPostApiChirps(config *ApiConfig,
 	}
 }
 
-func HandlerDeleteApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerDeleteApiChirpsId(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token string
@@ -332,10 +331,15 @@ func HandlerDeleteApiChirpsId(config *ApiConfig) func(http.ResponseWriter, *http
 	}
 }
 
-func HandlerPostApiPolkaWebhooks(config *ApiConfig) func(http.ResponseWriter, *http.Request) {
+func HandlerPostApiPolkaWebhooks(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
+		var apiKey string
 		var user database.User
+		if apiKey, err = auth.GetApiKey(r.Header); err != nil || apiKey != config.PolkaKey {
+			respPlainUnauthorized(w, r)
+			return
+		}
 		request := struct {
 			Event string `json:"event"`
 			Data  struct {

@@ -22,6 +22,7 @@ const (
 
 type ApiConfig struct {
 	Platform       string
+	PolkaKey       string
 	Secret         string
 	DBQueries      *database.Queries
 	FileserverHits atomic.Int32
