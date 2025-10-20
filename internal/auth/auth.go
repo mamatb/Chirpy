@@ -13,11 +13,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const (
-	HeaderAuthorization = "Authorization"
-	JwtIssuer           = "chirpy"
-)
-
 func HashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(hash), err
@@ -69,11 +64,11 @@ func MakeRefreshToken() (string, error) {
 func GetBearerToken(headers http.Header) (string, error) {
 	authorization := headers.Get(HeaderAuthorization)
 	if len(authorization) == 0 {
-		return "", errors.New("empty Authorization Bearer header")
+		return "", errors.New(ErrorMissingAuthBearer)
 	}
 	authorizationSplit := strings.Split(authorization, " ")
 	if len(authorizationSplit) != 2 || authorizationSplit[0] != "Bearer" {
-		return "", errors.New("invalid Authorization Bearer header")
+		return "", errors.New(ErrorInvalidAuthBearer)
 	}
 	return authorizationSplit[1], nil
 }
@@ -81,11 +76,11 @@ func GetBearerToken(headers http.Header) (string, error) {
 func GetApiKey(headers http.Header) (string, error) {
 	authorization := headers.Get(HeaderAuthorization)
 	if len(authorization) == 0 {
-		return "", errors.New("empty Authorization ApiKey header")
+		return "", errors.New(ErrorMissingAuthApiKey)
 	}
 	authorizationSplit := strings.Split(authorization, " ")
 	if len(authorizationSplit) != 2 || authorizationSplit[0] != "ApiKey" {
-		return "", errors.New("invalid Authorization ApiKey header")
+		return "", errors.New(ErrorInvalidAuthApiKey)
 	}
 	return authorizationSplit[1], nil
 }

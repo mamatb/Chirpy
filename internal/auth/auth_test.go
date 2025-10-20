@@ -67,7 +67,7 @@ func TestMakeJWT(t *testing.T) {
 	}
 	want := regexp.MustCompile(`^(eyJ[-_0-9A-Za-z]+\.){2}[-_0-9A-Za-z]+$`)
 	for _, inputSecret := range tests {
-		inputId, inputExpiry := uuid.New(), time.Second*60
+		inputId, inputExpiry := uuid.New(), time.Minute
 		if output, err := MakeJWT(inputId, inputSecret, inputExpiry); err != nil ||
 			!want.MatchString(output) {
 			t.Errorf(
@@ -81,7 +81,7 @@ func TestMakeJWT(t *testing.T) {
 func TestValidateJWT(t *testing.T) {
 	tests, inputToken, inputSecret := map[string]error{}, "", "secret"
 	issuer, start := "chirpy", jwt.NumericDate{Time: time.Now()}
-	end := jwt.NumericDate{Time: start.Add(time.Second * 60)}
+	end := jwt.NumericDate{Time: start.Add(time.Minute)}
 
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Issuer:    issuer,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -143,7 +144,7 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 			r.Context(),
 			request.Email,
 		); err != nil || auth.ValidateHash(request.Password, user.HashedPassword) != nil {
-			respJsonUnauthorized(w, r, "Incorrect email or password")
+			respJsonUnauthorized(w, r, ErrorInvalidEmailPassword)
 			return
 		}
 		if token, err = auth.MakeJWT(
@@ -245,14 +246,14 @@ func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 		var err error
 		var userId uuid.UUID
 		var chirps []database.Chirp
-		userIdString := r.URL.Query().Get("author_id")
-		if len(userIdString) == 0 {
+		userIdParam := r.URL.Query().Get("author_id")
+		if len(userIdParam) == 0 {
 			if chirps, err = config.DBQueries.GetChirps(r.Context()); err != nil {
 				respJsonError(w, r, ErrorSomethingWentWrong)
 				return
 			}
 		} else {
-			if userId, err = uuid.Parse(userIdString); err != nil {
+			if userId, err = uuid.Parse(userIdParam); err != nil {
 				respJsonError(w, r, ErrorSomethingWentWrong)
 				return
 			}
@@ -263,6 +264,9 @@ func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 				respJsonError(w, r, ErrorSomethingWentWrong)
 				return
 			}
+		}
+		if r.URL.Query().Get("sort") == "desc" {
+			slices.Reverse(chirps)
 		}
 		respJsonChirps(w, r, chirps)
 	}
@@ -290,7 +294,7 @@ func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.H
 			return
 		}
 		if len(request.Body) > 140 {
-			respJsonError(w, r, "Chirp is too long")
+			respJsonError(w, r, ErrorChirpTooLong)
 			return
 		}
 		if chirp, err = config.DBQueries.CreateChirp(
