@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mamatb/Chirpy/internal/auth"
-	"github.com/mamatb/Chirpy/internal/database"
+	"github.com/mamatb/Chirpy/auth"
+	database2 "github.com/mamatb/Chirpy/database"
 )
 
 func HandlerGetApiHealth() http.HandlerFunc {
@@ -59,7 +59,7 @@ func HandlerPostApiUsers(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var hash string
-		var user database.User
+		var user database2.User
 		request := struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
@@ -74,7 +74,7 @@ func HandlerPostApiUsers(config *ApiConfig) http.HandlerFunc {
 		}
 		if user, err = config.DBQueries.CreateUser(
 			r.Context(),
-			database.CreateUserParams{
+			database2.CreateUserParams{
 				Email:          request.Email,
 				HashedPassword: hash,
 			},
@@ -91,7 +91,7 @@ func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 		var err error
 		var token, hash string
 		var userId uuid.UUID
-		var user database.User
+		var user database2.User
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
 			respJsonUnauthorized(w, r, ErrorMissingToken)
 			return
@@ -114,7 +114,7 @@ func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 		}
 		if user, err = config.DBQueries.UpdateUserCredentials(
 			r.Context(),
-			database.UpdateUserCredentialsParams{
+			database2.UpdateUserCredentialsParams{
 				ID:             userId,
 				Email:          request.Email,
 				HashedPassword: hash,
@@ -131,7 +131,7 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token, refreshToken string
-		var user database.User
+		var user database2.User
 		request := struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
@@ -161,7 +161,7 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 		}
 		if _, err = config.DBQueries.CreateRefreshToken(
 			r.Context(),
-			database.CreateRefreshTokenParams{
+			database2.CreateRefreshTokenParams{
 				Token:     refreshToken,
 				UserID:    uuid.NullUUID{UUID: user.ID, Valid: true},
 				ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
@@ -178,7 +178,7 @@ func HandlerPostApiRefresh(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var token, refreshToken string
-		var user database.User
+		var user database2.User
 		if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
 			respJsonUnauthorized(w, r, ErrorMissingRefreshToken)
 			return
@@ -225,7 +225,7 @@ func HandlerGetApiChirpsId(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var chirpId uuid.UUID
-		var chirp database.Chirp
+		var chirp database2.Chirp
 		if chirpId, err = uuid.Parse(r.PathValue("id")); err != nil {
 			respJsonError(w, r, ErrorSomethingWentWrong)
 			return
@@ -245,7 +245,7 @@ func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var userId uuid.UUID
-		var chirps []database.Chirp
+		var chirps []database2.Chirp
 		userIdParam := r.URL.Query().Get("author_id")
 		if len(userIdParam) == 0 {
 			if chirps, err = config.DBQueries.GetChirps(r.Context()); err != nil {
@@ -277,7 +277,7 @@ func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.H
 		var err error
 		var token string
 		var userId uuid.UUID
-		var chirp database.Chirp
+		var chirp database2.Chirp
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
 			respJsonUnauthorized(w, r, ErrorMissingToken)
 			return
@@ -299,7 +299,7 @@ func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.H
 		}
 		if chirp, err = config.DBQueries.CreateChirp(
 			r.Context(),
-			database.CreateChirpParams{
+			database2.CreateChirpParams{
 				Body:   cleanProfanities(request.Body, profanities),
 				UserID: uuid.NullUUID{UUID: userId, Valid: true},
 			},
@@ -316,7 +316,7 @@ func HandlerDeleteApiChirpsId(config *ApiConfig) http.HandlerFunc {
 		var err error
 		var token string
 		var userId, chirpId uuid.UUID
-		var chirp database.Chirp
+		var chirp database2.Chirp
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
 			respPlainUnauthorized(w, r)
 			return
@@ -355,7 +355,7 @@ func HandlerPostApiPolkaWebhooks(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var apiKey string
-		var user database.User
+		var user database2.User
 		if apiKey, err = auth.GetApiKey(r.Header); err != nil || apiKey != config.PolkaKey {
 			respPlainUnauthorized(w, r)
 			return

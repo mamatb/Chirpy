@@ -8,8 +8,8 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-	"github.com/mamatb/Chirpy/internal/database"
-	"github.com/mamatb/Chirpy/internal/web"
+	"github.com/mamatb/Chirpy/database"
+	web2 "github.com/mamatb/Chirpy/web"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		Addr:    ":8080",
 		Handler: mux,
 	}
-	config := web.ApiConfig{
+	config := web2.ApiConfig{
 		Platform: os.Getenv("PLATFORM"),
 		PolkaKey: os.Getenv("POLKA_KEY"),
 		Secret:   os.Getenv("SECRET"),
@@ -40,59 +40,59 @@ func main() {
 
 	mux.HandleFunc(
 		"GET /api/health",
-		web.HandlerGetApiHealth(),
+		web2.HandlerGetApiHealth(),
 	)
 	mux.Handle(
 		"/app/",
-		web.HandlerApp(&config),
+		web2.HandlerApp(&config),
 	)
 	mux.HandleFunc(
 		"GET /admin/metrics",
-		web.HandlerGetAdminMetrics(&config),
+		web2.HandlerGetAdminMetrics(&config),
 	)
 	mux.HandleFunc(
 		"POST /admin/reset",
-		web.HandlerPostAdminReset(&config),
+		web2.HandlerPostAdminReset(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/users",
-		web.HandlerPostApiUsers(&config),
+		web2.HandlerPostApiUsers(&config),
 	)
 	mux.HandleFunc(
 		"PUT /api/users",
-		web.HandlerPutApiUsers(&config),
+		web2.HandlerPutApiUsers(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/login",
-		web.HandlerPostApiLogin(&config),
+		web2.HandlerPostApiLogin(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/refresh",
-		web.HandlerPostApiRefresh(&config),
+		web2.HandlerPostApiRefresh(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/revoke",
-		web.HandlerPostApiRevoke(&config),
+		web2.HandlerPostApiRevoke(&config),
 	)
 	mux.HandleFunc(
 		"GET /api/chirps/{id}",
-		web.HandlerGetApiChirpsId(&config),
+		web2.HandlerGetApiChirpsId(&config),
 	)
 	mux.HandleFunc(
 		"GET /api/chirps",
-		web.HandlerGetApiChirps(&config),
+		web2.HandlerGetApiChirps(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/chirps",
-		web.HandlerPostApiChirps(&config, profanities),
+		web2.HandlerPostApiChirps(&config, profanities),
 	)
 	mux.HandleFunc(
 		"DELETE /api/chirps/{id}",
-		web.HandlerDeleteApiChirpsId(&config),
+		web2.HandlerDeleteApiChirpsId(&config),
 	)
 	mux.HandleFunc(
 		"POST /api/polka/webhooks",
-		web.HandlerPostApiPolkaWebhooks(&config),
+		web2.HandlerPostApiPolkaWebhooks(&config),
 	)
 
 	log.Fatal(server.ListenAndServe())

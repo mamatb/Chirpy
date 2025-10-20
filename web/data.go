@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mamatb/Chirpy/internal/database"
+	"github.com/mamatb/Chirpy/database"
 )
 
 const (

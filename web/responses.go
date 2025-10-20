@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/mamatb/Chirpy/internal/database"
+	"github.com/mamatb/Chirpy/database"
 )
 
 func respPlainOk(w http.ResponseWriter, _ *http.Request) {
