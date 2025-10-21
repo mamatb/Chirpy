@@ -32,7 +32,7 @@ const (
 	httpUnauthorizedPlain     = "UNAUTHORIZED"
 	orderDesc                 = "desc"
 	polkaEventUserUpgraded    = "user.upgraded"
-	profanitiesReplacement    = "****"
+	profanityReplacement      = "****"
 	space                     = " "
 )
 
