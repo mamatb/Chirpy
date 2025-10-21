@@ -12,21 +12,30 @@ import (
 	"github.com/mamatb/Chirpy/web"
 )
 
+const (
+	driverName  = "postgres"
+	envDbUrl    = "DB_URL"
+	envPlatform = "PLATFORM"
+	envPolkaKey = "POLKA_KEY"
+	envSecret   = "SECRET"
+	tcpPort     = ":8080"
+)
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal(err)
 	}
 	mux := http.NewServeMux()
 	server := http.Server{
-		Addr:    ":8080",
+		Addr:    tcpPort,
 		Handler: mux,
 	}
 	config := web.ApiConfig{
-		Platform: os.Getenv("PLATFORM"),
-		PolkaKey: os.Getenv("POLKA_KEY"),
-		Secret:   os.Getenv("SECRET"),
+		Platform: os.Getenv(envPlatform),
+		PolkaKey: os.Getenv(envPolkaKey),
+		Secret:   os.Getenv(envSecret),
 	}
-	if db, err := sql.Open("postgres", os.Getenv("DB_URL")); err != nil {
+	if db, err := sql.Open(driverName, os.Getenv(envDbUrl)); err != nil {
 		log.Fatal(err)
 	} else {
 		defer db.Close()

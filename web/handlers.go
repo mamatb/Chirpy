@@ -20,14 +20,14 @@ func HandlerGetApiHealth() http.HandlerFunc {
 func HandlerApp(config *ApiConfig) http.Handler {
 	return config.middleMetricsInc(http.StripPrefix(
 		"/app/",
-		http.FileServer(http.Dir(".")),
+		http.FileServer(http.Dir(cwd)),
 	))
 }
 
 func HandlerGetAdminMetrics(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set(HeaderContentType, ContentTypeHtml)
-		if _, err := w.Write([]byte(fmt.Sprintf(""+
+		w.Header().Set(headerContentType, contentTypeHtml)
+		if _, err := w.Write([]byte(fmt.Sprintf(empty+
 			"<html>\n"+
 			"  <body>\n"+
 			"    <h1>Welcome, Chirpy Admin</h1>\n"+
@@ -43,12 +43,12 @@ func HandlerGetAdminMetrics(config *ApiConfig) http.HandlerFunc {
 
 func HandlerPostAdminReset(config *ApiConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if config.Platform != "dev" {
+		if config.Platform != platformDev {
 			respPlainForbidden(w, r)
 			return
 		}
 		if config.DBQueries.DeleteUsers(r.Context()) != nil {
-			respPlainError(w, r, ErrorSomethingWentWrong)
+			respPlainBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		config.middleMetricsReset(respPlainOk)
@@ -65,11 +65,11 @@ func HandlerPostApiUsers(config *ApiConfig) http.HandlerFunc {
 			Password string `json:"password"`
 		}{}
 		if json.NewDecoder(r.Body).Decode(&request) != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if hash, err = auth.HashPassword(request.Password); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if user, err = config.DBQueries.CreateUser(
@@ -79,7 +79,7 @@ func HandlerPostApiUsers(config *ApiConfig) http.HandlerFunc {
 				HashedPassword: hash,
 			},
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		respJsonUserCreated(w, r, user)
@@ -93,11 +93,11 @@ func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 		var userId uuid.UUID
 		var user database.User
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
-			respJsonUnauthorized(w, r, ErrorMissingToken)
+			respJsonUnauthorized(w, r, errorMissingToken)
 			return
 		}
 		if userId, err = auth.ValidateJWT(token, config.Secret); err != nil {
-			respJsonUnauthorized(w, r, ErrorInvalidToken)
+			respJsonUnauthorized(w, r, errorInvalidToken)
 			return
 		}
 		request := struct {
@@ -105,11 +105,11 @@ func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 			Password string `json:"password"`
 		}{}
 		if json.NewDecoder(r.Body).Decode(&request) != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if hash, err = auth.HashPassword(request.Password); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if user, err = config.DBQueries.UpdateUserCredentials(
@@ -120,10 +120,10 @@ func HandlerPutApiUsers(config *ApiConfig) http.HandlerFunc {
 				HashedPassword: hash,
 			},
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
-		respJsonUser(w, r, user, "", "")
+		respJsonUser(w, r, user, empty, empty)
 	}
 }
 
@@ -137,14 +137,14 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 			Password string `json:"password"`
 		}{}
 		if json.NewDecoder(r.Body).Decode(&request) != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if user, err = config.DBQueries.GetUser(
 			r.Context(),
 			request.Email,
 		); err != nil || auth.ValidateHash(request.Password, user.HashedPassword) != nil {
-			respJsonUnauthorized(w, r, ErrorInvalidEmailPassword)
+			respJsonUnauthorized(w, r, errorInvalidEmailPassword)
 			return
 		}
 		if token, err = auth.MakeJWT(
@@ -152,11 +152,11 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 			config.Secret,
 			time.Hour,
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if refreshToken, err = auth.MakeRefreshToken(); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if _, err = config.DBQueries.CreateRefreshToken(
@@ -164,10 +164,10 @@ func HandlerPostApiLogin(config *ApiConfig) http.HandlerFunc {
 			database.CreateRefreshTokenParams{
 				Token:     refreshToken,
 				UserID:    uuid.NullUUID{UUID: user.ID, Valid: true},
-				ExpiresAt: time.Now().Add(time.Hour * 24 * 60),
+				ExpiresAt: time.Now().Add(time.Hour * hoursInDay * daysInMonth * 2),
 			},
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		respJsonUser(w, r, user, token, refreshToken)
@@ -180,14 +180,14 @@ func HandlerPostApiRefresh(config *ApiConfig) http.HandlerFunc {
 		var token, refreshToken string
 		var user database.User
 		if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
-			respJsonUnauthorized(w, r, ErrorMissingRefreshToken)
+			respJsonUnauthorized(w, r, errorMissingRefreshToken)
 			return
 		}
 		if user, err = config.DBQueries.GetUserFromRefreshToken(
 			r.Context(),
 			refreshToken,
 		); err != nil || user.ID == uuid.Nil {
-			respJsonUnauthorized(w, r, ErrorInvalidRefreshToken)
+			respJsonUnauthorized(w, r, errorInvalidRefreshToken)
 			return
 		}
 		if token, err = auth.MakeJWT(
@@ -195,7 +195,7 @@ func HandlerPostApiRefresh(config *ApiConfig) http.HandlerFunc {
 			config.Secret,
 			time.Hour,
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		respJsonToken(w, r, token)
@@ -207,17 +207,17 @@ func HandlerPostApiRevoke(config *ApiConfig) http.HandlerFunc {
 		var err error
 		var refreshToken string
 		if refreshToken, err = auth.GetBearerToken(r.Header); err != nil {
-			respPlainError(w, r, ErrorMissingRefreshToken)
+			respPlainBadRequest(w, r, errorMissingRefreshToken)
 			return
 		}
 		if config.DBQueries.DeleteRefreshToken(
 			r.Context(),
 			refreshToken,
 		) != nil {
-			respPlainError(w, r, ErrorSomethingWentWrong)
+			respPlainBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -227,7 +227,7 @@ func HandlerGetApiChirpsId(config *ApiConfig) http.HandlerFunc {
 		var chirpId uuid.UUID
 		var chirp database.Chirp
 		if chirpId, err = uuid.Parse(r.PathValue("id")); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if chirp, err = config.DBQueries.GetChirp(
@@ -249,23 +249,23 @@ func HandlerGetApiChirps(config *ApiConfig) http.HandlerFunc {
 		userIdParam := r.URL.Query().Get("author_id")
 		if len(userIdParam) == 0 {
 			if chirps, err = config.DBQueries.GetChirps(r.Context()); err != nil {
-				respJsonError(w, r, ErrorSomethingWentWrong)
+				respJsonBadRequest(w, r, errorSomethingWentWrong)
 				return
 			}
 		} else {
 			if userId, err = uuid.Parse(userIdParam); err != nil {
-				respJsonError(w, r, ErrorSomethingWentWrong)
+				respJsonBadRequest(w, r, errorSomethingWentWrong)
 				return
 			}
 			if chirps, err = config.DBQueries.GetChirpsFromUser(
 				r.Context(),
 				uuid.NullUUID{UUID: userId, Valid: true},
 			); err != nil {
-				respJsonError(w, r, ErrorSomethingWentWrong)
+				respJsonBadRequest(w, r, errorSomethingWentWrong)
 				return
 			}
 		}
-		if r.URL.Query().Get("sort") == "desc" {
+		if r.URL.Query().Get("sort") == orderDesc {
 			slices.Reverse(chirps)
 		}
 		respJsonChirps(w, r, chirps)
@@ -279,22 +279,22 @@ func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.H
 		var userId uuid.UUID
 		var chirp database.Chirp
 		if token, err = auth.GetBearerToken(r.Header); err != nil {
-			respJsonUnauthorized(w, r, ErrorMissingToken)
+			respJsonUnauthorized(w, r, errorMissingToken)
 			return
 		}
 		if userId, err = auth.ValidateJWT(token, config.Secret); err != nil {
-			respJsonUnauthorized(w, r, ErrorInvalidToken)
+			respJsonUnauthorized(w, r, errorInvalidToken)
 			return
 		}
 		request := struct {
 			Body string `json:"body"`
 		}{}
 		if json.NewDecoder(r.Body).Decode(&request) != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if len(request.Body) > 140 {
-			respJsonError(w, r, ErrorChirpTooLong)
+			respJsonBadRequest(w, r, errorChirpTooLong)
 			return
 		}
 		if chirp, err = config.DBQueries.CreateChirp(
@@ -304,7 +304,7 @@ func HandlerPostApiChirps(config *ApiConfig, profanities map[string]bool) http.H
 				UserID: uuid.NullUUID{UUID: userId, Valid: true},
 			},
 		); err != nil {
-			respJsonError(w, r, ErrorSomethingWentWrong)
+			respJsonBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		respJsonChirpCreated(w, r, chirp)
@@ -326,7 +326,7 @@ func HandlerDeleteApiChirpsId(config *ApiConfig) http.HandlerFunc {
 			return
 		}
 		if chirpId, err = uuid.Parse(r.PathValue("id")); err != nil {
-			respPlainError(w, r, ErrorSomethingWentWrong)
+			respPlainBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
 		if chirp, err = config.DBQueries.GetChirp(
@@ -344,10 +344,10 @@ func HandlerDeleteApiChirpsId(config *ApiConfig) http.HandlerFunc {
 			r.Context(),
 			chirp.ID,
 		) != nil {
-			respPlainError(w, r, ErrorSomethingWentWrong)
+			respPlainBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -367,11 +367,11 @@ func HandlerPostApiPolkaWebhooks(config *ApiConfig) http.HandlerFunc {
 			} `json:"data"`
 		}{}
 		if json.NewDecoder(r.Body).Decode(&request) != nil {
-			respPlainError(w, r, ErrorSomethingWentWrong)
+			respPlainBadRequest(w, r, errorSomethingWentWrong)
 			return
 		}
-		if request.Event != "user.upgraded" {
-			w.WriteHeader(204)
+		if request.Event != polkaEventUserUpgraded {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		if user, err = config.DBQueries.UpdateUserRed(
@@ -381,6 +381,6 @@ func HandlerPostApiPolkaWebhooks(config *ApiConfig) http.HandlerFunc {
 			respPlainNotFound(w, r)
 			return
 		}
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

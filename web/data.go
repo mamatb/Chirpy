@@ -9,17 +9,31 @@ import (
 )
 
 const (
-	HeaderContentType         = "Content-Type"
-	ContentTypePlain          = "text/plain; charset=utf-8"
-	ContentTypeHtml           = "text/html; charset=utf-8"
-	ContentTypeJson           = "application/json; charset=utf-8"
-	ErrorSomethingWentWrong   = "Something went wrong"
-	ErrorInvalidEmailPassword = "Invalid email or password"
-	ErrorMissingToken         = "Missing token"
-	ErrorInvalidToken         = "Invalid token"
-	ErrorMissingRefreshToken  = "Missing refresh token"
-	ErrorInvalidRefreshToken  = "Invalid refresh token"
-	ErrorChirpTooLong         = "Chirp is too long"
+	daysInMonth = 30
+	hoursInDay  = 24
+
+	contentTypeHtml           = "text/html; charset=utf-8"
+	contentTypeJson           = "application/json; charset=utf-8"
+	contentTypePlain          = "text/plain; charset=utf-8"
+	cwd                       = "."
+	empty                     = ""
+	platformDev               = "dev"
+	errorChirpTooLong         = "Chirp is too long"
+	errorInvalidEmailPassword = "Invalid email or password"
+	errorInvalidToken         = "Invalid token"
+	errorInvalidRefreshToken  = "Invalid refresh token"
+	errorMissingToken         = "Missing token"
+	errorMissingRefreshToken  = "Missing refresh token"
+	errorSomethingWentWrong   = "Something went wrong"
+	headerContentType         = "Content-Type"
+	httpForbiddenPlain        = "FORBIDDEN"
+	httpNotFoundPlain         = "NOT FOUND"
+	httpOkPlain               = "OK"
+	httpUnauthorizedPlain     = "UNAUTHORIZED"
+	orderDesc                 = "desc"
+	polkaEventUserUpgraded    = "user.upgraded"
+	profanitiesReplacement    = "****"
+	space                     = " "
 )
 
 type ApiConfig struct {

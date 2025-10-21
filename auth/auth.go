@@ -26,7 +26,7 @@ func MakeJWT(id uuid.UUID, secret string, expiration time.Duration) (string, err
 	start := jwt.NumericDate{Time: time.Now()}
 	end := jwt.NumericDate{Time: start.Add(expiration)}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    JwtIssuer,
+		Issuer:    jwtIssuer,
 		Subject:   id.String(),
 		ExpiresAt: &end,
 		IssuedAt:  &start,
@@ -43,7 +43,7 @@ func ValidateJWT(tokenString string, secret string) (uuid.UUID, error) {
 			return []byte(secret), nil
 		},
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
-		jwt.WithIssuer(JwtIssuer),
+		jwt.WithIssuer(jwtIssuer),
 	); err != nil {
 		return uuid.Nil, err
 	} else if id, err := uuid.Parse(claims.Subject); err != nil {
@@ -54,33 +54,33 @@ func ValidateJWT(tokenString string, secret string) (uuid.UUID, error) {
 }
 
 func MakeRefreshToken() (string, error) {
-	refreshToken := make([]byte, 32)
+	refreshToken := make([]byte, refreshTokenLength)
 	if _, err := rand.Read(refreshToken); err != nil {
-		return "", err
+		return empty, err
 	}
 	return hex.EncodeToString(refreshToken), nil
 }
 
 func GetBearerToken(headers http.Header) (string, error) {
-	authorization := headers.Get(HeaderAuthorization)
+	authorization := headers.Get(headerAuthorization)
 	if len(authorization) == 0 {
-		return "", errors.New(ErrorMissingAuthBearer)
+		return empty, errors.New(errorMissingAuthBearer)
 	}
-	authorizationSplit := strings.Split(authorization, " ")
-	if len(authorizationSplit) != 2 || authorizationSplit[0] != "Bearer" {
-		return "", errors.New(ErrorInvalidAuthBearer)
+	authorizationSplit := strings.Split(authorization, space)
+	if len(authorizationSplit) != 2 || authorizationSplit[0] != authorizationBearer {
+		return empty, errors.New(errorInvalidAuthBearer)
 	}
 	return authorizationSplit[1], nil
 }
 
 func GetApiKey(headers http.Header) (string, error) {
-	authorization := headers.Get(HeaderAuthorization)
+	authorization := headers.Get(headerAuthorization)
 	if len(authorization) == 0 {
-		return "", errors.New(ErrorMissingAuthApiKey)
+		return empty, errors.New(errorMissingAuthApiKey)
 	}
-	authorizationSplit := strings.Split(authorization, " ")
-	if len(authorizationSplit) != 2 || authorizationSplit[0] != "ApiKey" {
-		return "", errors.New(ErrorInvalidAuthApiKey)
+	authorizationSplit := strings.Split(authorization, space)
+	if len(authorizationSplit) != 2 || authorizationSplit[0] != authorizationApiKey {
+		return empty, errors.New(errorInvalidAuthApiKey)
 	}
 	return authorizationSplit[1], nil
 }

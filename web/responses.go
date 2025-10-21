@@ -9,16 +9,16 @@ import (
 )
 
 func respPlainOk(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set(HeaderContentType, ContentTypePlain)
-	body := []byte("OK")
+	w.Header().Set(headerContentType, contentTypePlain)
+	body := []byte(httpOkPlain)
 	if _, err := w.Write(body); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func respPlainError(w http.ResponseWriter, _ *http.Request, message string) {
-	w.WriteHeader(400)
-	w.Header().Set(HeaderContentType, ContentTypePlain)
+func respPlainBadRequest(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	w.Header().Set(headerContentType, contentTypePlain)
 	body := []byte(message)
 	if _, err := w.Write(body); err != nil {
 		log.Fatal(err)
@@ -26,27 +26,27 @@ func respPlainError(w http.ResponseWriter, _ *http.Request, message string) {
 }
 
 func respPlainUnauthorized(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(401)
-	w.Header().Set(HeaderContentType, ContentTypePlain)
-	body := []byte("UNAUTHORIZED")
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Header().Set(headerContentType, contentTypePlain)
+	body := []byte(httpUnauthorizedPlain)
 	if _, err := w.Write(body); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func respPlainForbidden(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(403)
-	w.Header().Set(HeaderContentType, ContentTypePlain)
-	body := []byte("FORBIDDEN")
+	w.WriteHeader(http.StatusForbidden)
+	w.Header().Set(headerContentType, contentTypePlain)
+	body := []byte(httpForbiddenPlain)
 	if _, err := w.Write(body); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func respPlainNotFound(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(404)
-	w.Header().Set(HeaderContentType, ContentTypePlain)
-	body := []byte("NOT FOUND")
+	w.WriteHeader(http.StatusNotFound)
+	w.Header().Set(headerContentType, contentTypePlain)
+	body := []byte(httpNotFoundPlain)
 	if _, err := w.Write(body); err != nil {
 		log.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func respPlainNotFound(w http.ResponseWriter, _ *http.Request) {
 
 func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User,
 	token string, refreshToken string) {
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(jsonUser{
@@ -74,7 +74,7 @@ func respJsonUser(w http.ResponseWriter, _ *http.Request, user database.User,
 }
 
 func respJsonToken(w http.ResponseWriter, _ *http.Request, token string) {
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(jsonToken{
@@ -88,7 +88,7 @@ func respJsonToken(w http.ResponseWriter, _ *http.Request, token string) {
 }
 
 func respJsonChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp) {
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(jsonChirp{
@@ -106,7 +106,7 @@ func respJsonChirp(w http.ResponseWriter, _ *http.Request, chirp database.Chirp)
 }
 
 func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Chirp) {
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	var chirpsJson []jsonChirp
@@ -128,18 +128,18 @@ func respJsonChirps(w http.ResponseWriter, _ *http.Request, chirps []database.Ch
 }
 
 func respJsonUserCreated(w http.ResponseWriter, r *http.Request, user database.User) {
-	w.WriteHeader(201)
-	respJsonUser(w, r, user, "", "")
+	w.WriteHeader(http.StatusCreated)
+	respJsonUser(w, r, user, empty, empty)
 }
 
 func respJsonChirpCreated(w http.ResponseWriter, r *http.Request, chirp database.Chirp) {
-	w.WriteHeader(201)
+	w.WriteHeader(http.StatusCreated)
 	respJsonChirp(w, r, chirp)
 }
 
-func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
-	w.WriteHeader(400)
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+func respJsonBadRequest(w http.ResponseWriter, _ *http.Request, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(jsonError{
@@ -153,8 +153,8 @@ func respJsonError(w http.ResponseWriter, _ *http.Request, message string) {
 }
 
 func respJsonUnauthorized(w http.ResponseWriter, _ *http.Request, message string) {
-	w.WriteHeader(401)
-	w.Header().Set(HeaderContentType, ContentTypeJson)
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Header().Set(headerContentType, contentTypeJson)
 	var err error
 	var body []byte
 	if body, err = json.Marshal(jsonError{

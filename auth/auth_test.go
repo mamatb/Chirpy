@@ -18,7 +18,7 @@ func TestHashPassword(t *testing.T) {
 		"qwerty",
 		"secret",
 	}
-	want := regexp.MustCompile(`^\$2a\$10\$[./0-9A-Za-z]{53}$`)
+	want := regexp.MustCompile(regexBcrypt)
 	for _, input := range tests {
 		if output, err := HashPassword(input); err != nil || !want.MatchString(output) {
 			t.Errorf(
@@ -65,7 +65,7 @@ func TestMakeJWT(t *testing.T) {
 		"qwerty",
 		"secret",
 	}
-	want := regexp.MustCompile(`^(eyJ[-_0-9A-Za-z]+\.){2}[-_0-9A-Za-z]+$`)
+	want := regexp.MustCompile(regexJwt)
 	for _, inputSecret := range tests {
 		inputId, inputExpiry := uuid.New(), time.Minute
 		if output, err := MakeJWT(inputId, inputSecret, inputExpiry); err != nil ||
@@ -79,12 +79,12 @@ func TestMakeJWT(t *testing.T) {
 }
 
 func TestValidateJWT(t *testing.T) {
-	tests, inputToken, inputSecret := map[string]error{}, "", "secret"
-	issuer, start := "chirpy", jwt.NumericDate{Time: time.Now()}
+	tests, inputToken, inputSecret := map[string]error{}, empty, "secret"
+	start := jwt.NumericDate{Time: time.Now()}
 	end := jwt.NumericDate{Time: start.Add(time.Minute)}
 
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    issuer,
+		Issuer:    jwtIssuer,
 		IssuedAt:  &start,
 		ExpiresAt: &end,
 		Subject:   uuid.New().String(),
@@ -104,7 +104,7 @@ func TestValidateJWT(t *testing.T) {
 	tests[inputToken] = jwt.ErrTokenInvalidClaims
 
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    issuer,
+		Issuer:    jwtIssuer,
 		IssuedAt:  &start,
 		ExpiresAt: &start,
 		Subject:   uuid.New().String(),
@@ -120,7 +120,7 @@ func TestValidateJWT(t *testing.T) {
 	tests[inputToken] = jwt.ErrTokenInvalidIssuer
 
 	inputToken, _ = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    issuer,
+		Issuer:    jwtIssuer,
 		IssuedAt:  &start,
 		ExpiresAt: &end,
 		Subject:   "error",
@@ -139,14 +139,14 @@ func TestValidateJWT(t *testing.T) {
 
 func TestGetBearerToken(t *testing.T) {
 	testsOk := []http.Header{
-		{HeaderAuthorization: []string{"Bearer 123456"}},
-		{HeaderAuthorization: []string{"Bearer qwerty"}},
-		{HeaderAuthorization: []string{"Bearer secret"}},
+		{headerAuthorization: []string{authorizationBearer + " 123456"}},
+		{headerAuthorization: []string{authorizationBearer + " qwerty"}},
+		{headerAuthorization: []string{authorizationBearer + " secret"}},
 	}
 	testsErr := []http.Header{
 		{},
-		{HeaderAuthorization: []string{}},
-		{HeaderAuthorization: []string{"Bearer"}},
+		{headerAuthorization: []string{}},
+		{headerAuthorization: []string{authorizationBearer}},
 	}
 	for _, input := range testsOk {
 		if output, err := GetBearerToken(input); err != nil {
@@ -168,14 +168,14 @@ func TestGetBearerToken(t *testing.T) {
 
 func TestGetApiKey(t *testing.T) {
 	testsOk := []http.Header{
-		{HeaderAuthorization: []string{"ApiKey 123456"}},
-		{HeaderAuthorization: []string{"ApiKey qwerty"}},
-		{HeaderAuthorization: []string{"ApiKey secret"}},
+		{headerAuthorization: []string{authorizationApiKey + " 123456"}},
+		{headerAuthorization: []string{authorizationApiKey + " qwerty"}},
+		{headerAuthorization: []string{authorizationApiKey + " secret"}},
 	}
 	testsErr := []http.Header{
 		{},
-		{HeaderAuthorization: []string{}},
-		{HeaderAuthorization: []string{"ApiKey"}},
+		{headerAuthorization: []string{}},
+		{headerAuthorization: []string{authorizationApiKey}},
 	}
 	for _, input := range testsOk {
 		if output, err := GetApiKey(input); err != nil {

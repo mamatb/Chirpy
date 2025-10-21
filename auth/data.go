@@ -1,10 +1,19 @@
 package auth
 
 const (
-	HeaderAuthorization    = "Authorization"
-	JwtIssuer              = "chirpy"
-	ErrorMissingAuthBearer = "missing Authorization Bearer header"
-	ErrorInvalidAuthBearer = "invalid Authorization Bearer header"
-	ErrorMissingAuthApiKey = "missing Authorization ApiKey header"
-	ErrorInvalidAuthApiKey = "invalid Authorization ApiKey header"
+	refreshTokenLength = 32
+
+	authorizationApiKey    = "ApiKey"
+	authorizationBearer    = "Bearer"
+	empty                  = ""
+	errorInvalidAuthApiKey = "invalid Authorization ApiKey header"
+	errorInvalidAuthBearer = "invalid Authorization Bearer header"
+	errorMissingAuthApiKey = "missing Authorization ApiKey header"
+	errorMissingAuthBearer = "missing Authorization Bearer header"
+	headerAuthorization    = "Authorization"
+	jwtIssuer              = "chirpy"
+	space                  = " "
+
+	regexBcrypt = `^\$2a\$10\$[./0-9A-Za-z]{53}$`
+	regexJwt    = `^(eyJ[-_0-9A-Za-z]+\.){2}[-_0-9A-Za-z]+$`
 )
